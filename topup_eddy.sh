@@ -151,7 +151,7 @@ run_topup_cli() {
         --numprec="${numprec}" \
         --interp="${interp}" \
         --scale="${scale01}" \
-        --regrid="${regrid01}" --verbos
+        --regrid="${regrid01}" --verbose
 }
 
 run_topup_config() {
@@ -163,7 +163,7 @@ run_topup_config() {
         --out=my_topup_results \
         --fout=my_field \
         --iout=my_unwarped_images \
-        $topup_mask_opt --verbos
+        $topup_mask_opt --verbose
 }
 
 # -----------------------
