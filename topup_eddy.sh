@@ -109,28 +109,26 @@ bool_to_01() {
 }
 
 write_topup_config() {
-  # Writes a topup config file compatible with older FSL builds that require --config.
   local cnf="$1"
   : > "$cnf"
 
-  # Only include fields that are non-empty to avoid invalid lines.
-  [[ -n "$warpres" ]]    && echo "warpres=${warpres}" >> "$cnf"
-  [[ -n "$subsamp" ]]    && echo "subsamp=${subsamp}" >> "$cnf"
-  [[ -n "$fwhm" ]]       && echo "fwhm=${fwhm}" >> "$cnf"
-  [[ -n "$miter" ]]      && echo "miter=${miter}" >> "$cnf"
-  [[ -n "$lambda" ]]     && echo "lambda=${lambda}" >> "$cnf"
-  [[ -n "$ssqlambda" ]]  && echo "ssqlambda=${ssqlambda}" >> "$cnf"
-  [[ -n "$regmod" ]]     && echo "regmod=${regmod}" >> "$cnf"
-  [[ -n "$estmov" ]]     && echo "estmov=${estmov}" >> "$cnf"
-  [[ -n "$minmet" ]]     && echo "minmet=${minmet}" >> "$cnf"
-  [[ -n "$splineorder" ]]&& echo "splineorder=${splineorder}" >> "$cnf"
-  [[ -n "$numprec" ]]    && echo "numprec=${numprec}" >> "$cnf"
-  [[ -n "$interp" ]]     && echo "interp=${interp}" >> "$cnf"
+  [[ -n "$warpres" ]]    && echo "--warpres=${warpres}" >> "$cnf"
+  [[ -n "$subsamp" ]]    && echo "--subsamp=${subsamp}" >> "$cnf"
+  [[ -n "$fwhm" ]]       && echo "--fwhm=${fwhm}" >> "$cnf"
+  [[ -n "$miter" ]]      && echo "--miter=${miter}" >> "$cnf"
+  [[ -n "$lambda" ]]     && echo "--lambda=${lambda}" >> "$cnf"
+  [[ -n "$ssqlambda" ]]  && echo "--ssqlambda=${ssqlambda}" >> "$cnf"
+  [[ -n "$regmod" ]]     && echo "--regmod=${regmod}" >> "$cnf"
+  [[ -n "$estmov" ]]     && echo "--estmov=${estmov}" >> "$cnf"
+  [[ -n "$minmet" ]]     && echo "--minmet=${minmet}" >> "$cnf"
+  [[ -n "$splineorder" ]]&& echo "--splineorder=${splineorder}" >> "$cnf"
+  [[ -n "$numprec" ]]    && echo "--numprec=${numprec}" >> "$cnf"
+  [[ -n "$interp" ]]     && echo "--interp=${interp}" >> "$cnf"
 
-  # These should be numeric for widest compatibility
-  echo "scale=${scale01}"  >> "$cnf"
-  echo "regrid=${regrid01}" >> "$cnf"
+  echo "--scale=${scale01}"  >> "$cnf"
+  echo "--regrid=${regrid01}" >> "$cnf"
 }
+
 
 run_topup_cli() {
   # Try "new-style" topup CLI (some older builds will reject and print usage).
