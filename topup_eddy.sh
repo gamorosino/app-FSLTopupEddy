@@ -349,6 +349,46 @@ if [[ "$sstrip" == "true" ]]; then
   topup_mask_opt="--mask=b0_images_mean_brain_mask.nii.gz"
 fi
 
+
+
+# -----------------------
+# Sanity check
+# -----------------------
+
+# Validate topup inputs; rebuild if stale/invalid
+if [[ ! -f b0_images.nii.gz ]]; then
+  echo "ERROR: b0_images.nii.gz missing"
+  exit 1
+fi
+
+dim4=$(fslinfo b0_images.nii.gz | awk '/^dim4/ {print $2}')
+if [[ -z "${dim4:-}" ]]; then
+  echo "ERROR: could not read dim4 from b0_images.nii.gz"
+  exit 1
+fi
+
+if [[ "$dim4" -lt 2 ]]; then
+  echo "ERROR: b0_images.nii.gz is not 4D with >=2 volumes (dim4=$dim4). Rebuilding."
+  rm -f b0_images.nii.gz
+  # force rebuild by deleting acq_params too
+  rm -f acq_params.txt
+fi
+
+if [[ -f acq_params.txt ]]; then
+  nrows=$(awk 'NF>0{c++} END{print c+0}' acq_params.txt)
+  if [[ "$nrows" -ne "$dim4" ]]; then
+    echo "ERROR: acq_params.txt rows ($nrows) != b0_images dim4 ($dim4). Rebuilding."
+    rm -f b0_images.nii.gz acq_params.txt
+  fi
+fi
+
+
+ls -lh b0_images.nii.gz acq_params.txt topup_config.cnf || true
+fslinfo b0_images.nii.gz | egrep 'dim1|dim2|dim3|dim4'
+cat acq_params.txt
+head -n 5 topup_config.cnf || true
+which topup
+
 # -----------------------
 # TOPUP (try CLI; if fails, fall back to --config)
 # -----------------------
