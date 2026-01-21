@@ -27,7 +27,6 @@ set -x
 #    rdif metadata embedded in config ._inputs[] with id=="rdif").
 ###############################################################################
 
-# If you need CUDA libs from host (example path kept from your original)
 export LD_LIBRARY_PATH=/pylon5/tr4s8pp/shayashi/cuda-8.0/lib64:${LD_LIBRARY_PATH:-}
 
 CFG="config.json"
@@ -75,15 +74,13 @@ refvol=$(jq -r '.refvol // 0' "$CFG")
 
 # Behavior flags
 reslice=$(jq -r '.reslice // "false"' "$CFG")
-merge_full=$(jq -r '.mergefull // "false"' "$CFG")   # NOTE: your config uses "mergefull"
-sstrip=$(jq -r '.sstrip // "false"' "$CFG")          # optional; defaults false
+merge_full=$(jq -r '.mergefull // "false"' "$CFG")
+sstrip=$(jq -r '.sstrip // "false"' "$CFG")
 
 # -----------------------
 # Helpers
 # -----------------------
 pe_to_vec() {
-  # BIDS PhaseEncodingDirection -> FSL acqparams vector
-  # i  ->  1 0 0 ; i- -> -1 0 0 ; j -> 0 1 0 ; j- -> 0 -1 0 ; k -> 0 0 1 ; k- -> 0 0 -1
   case "$1" in
     i)  echo "1 0 0" ;;
     i-) echo "-1 0 0" ;;
@@ -95,7 +92,6 @@ pe_to_vec() {
   esac
 }
 
-# Embedded metadata for inputs (diff/rdif) lives in config.json under ._inputs[].meta
 get_meta_ped() {
   local id="$1"
   jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.PhaseEncodingDirection // empty' "$CFG"
@@ -105,12 +101,71 @@ get_meta_trt() {
   jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.TotalReadoutTime // empty' "$CFG"
 }
 
-# EPI json sidecars are separate files
 get_pe_dir_file() { jq -r '.PhaseEncodingDirection // empty' "$1"; }
 get_trt_file()    { jq -r '.TotalReadoutTime // empty' "$1"; }
 
 bool_to_01() {
   if [[ "$1" == "true" ]]; then echo 1; else echo 0; fi
+}
+
+write_topup_config() {
+  # Writes a topup config file compatible with older FSL builds that require --config.
+  local cnf="$1"
+  : > "$cnf"
+
+  # Only include fields that are non-empty to avoid invalid lines.
+  [[ -n "$warpres" ]]    && echo "warpres=${warpres}" >> "$cnf"
+  [[ -n "$subsamp" ]]    && echo "subsamp=${subsamp}" >> "$cnf"
+  [[ -n "$fwhm" ]]       && echo "fwhm=${fwhm}" >> "$cnf"
+  [[ -n "$miter" ]]      && echo "miter=${miter}" >> "$cnf"
+  [[ -n "$lambda" ]]     && echo "lambda=${lambda}" >> "$cnf"
+  [[ -n "$ssqlambda" ]]  && echo "ssqlambda=${ssqlambda}" >> "$cnf"
+  [[ -n "$regmod" ]]     && echo "regmod=${regmod}" >> "$cnf"
+  [[ -n "$estmov" ]]     && echo "estmov=${estmov}" >> "$cnf"
+  [[ -n "$minmet" ]]     && echo "minmet=${minmet}" >> "$cnf"
+  [[ -n "$splineorder" ]]&& echo "splineorder=${splineorder}" >> "$cnf"
+  [[ -n "$numprec" ]]    && echo "numprec=${numprec}" >> "$cnf"
+  [[ -n "$interp" ]]     && echo "interp=${interp}" >> "$cnf"
+
+  # These should be numeric for widest compatibility
+  echo "scale=${scale01}"  >> "$cnf"
+  echo "regrid=${regrid01}" >> "$cnf"
+}
+
+run_topup_cli() {
+  # Try "new-style" topup CLI (some older builds will reject and print usage).
+  topup --imain=b0_images.nii.gz \
+        --datain=acq_params.txt \
+        --out=my_topup_results \
+        --fout=my_field \
+        --iout=my_unwarped_images \
+        $topup_mask_opt \
+        --warpres="${warpres}" \
+        --subsamp="${subsamp}" \
+        --fwhm="${fwhm}" \
+        --miter="${miter}" \
+        --lambda="${lambda}" \
+        --ssqlambda="${ssqlambda}" \
+        --regmod="${regmod}" \
+        --estmov="${estmov}" \
+        --minmet="${minmet}" \
+        --splineorder="${splineorder}" \
+        --numprec="${numprec}" \
+        --interp="${interp}" \
+        --scale="${scale01}" \
+        --regrid="${regrid01}"
+}
+
+run_topup_config() {
+  local cnf="topup_config.cnf"
+  write_topup_config "$cnf"
+  topup --imain=b0_images.nii.gz \
+        --datain=acq_params.txt \
+        --config="$cnf" \
+        --out=my_topup_results \
+        --fout=my_field \
+        --iout=my_unwarped_images \
+        $topup_mask_opt
 }
 
 # -----------------------
@@ -156,7 +211,6 @@ regrid01=$(bool_to_01 "$regrid")
 # Folder structures
 # -----------------------
 mkdir -p dwi mask raw diff
-# rdif folder only if needed
 if [[ "$merge_full" == "true" ]]; then
   mkdir -p rdif
 fi
@@ -202,7 +256,6 @@ else
   if [[ "$use_epi_topup" == "true" ]]; then
     echo "Using epi1/epi2 for topup"
 
-    # Read diffusion PE dir from embedded meta
     diff_ped=$(get_meta_ped "diff")
     diff_trt=$(get_meta_trt "diff")
     if [[ -z "$diff_ped" || -z "$diff_trt" ]]; then
@@ -220,7 +273,6 @@ else
       exit 1
     fi
 
-    # Order: first EPI matches diffusion PE direction if possible
     if [[ "$epi1_ped" == "$diff_ped" ]]; then
       b0_a="$epi1"; json_a="$epi1_json"
       b0_b="$epi2"; json_b="$epi2_json"
@@ -249,14 +301,12 @@ else
   else
     echo "epi1/epi2 not provided; building topup inputs by extracting b0 from DWI(s)"
 
-    # Need rdif if you want a proper topup pair
     if [[ "$merge_full" != "true" ]]; then
       echo "ERROR: No epi1/epi2 provided and mergefull!=true (no opposite-PE pair available for topup)."
       echo "Provide epi1/epi2 or provide rdif+mergefull=true."
       exit 1
     fi
 
-    # Extract b=0 volumes and mean them for diff and rdif
     for PHASE in diff rdif; do
       if [[ ! -f ./${PHASE}/${PHASE}_nodif.nii.gz ]]; then
         select_dwi_vols ./${PHASE}/dwi.nii.gz ./${PHASE}/dwi.bvals ./${PHASE}/${PHASE}_nodif.nii.gz 0
@@ -268,7 +318,6 @@ else
 
     [[ -f b0_images.nii.gz ]] || fslmerge -t b0_images.nii.gz ./diff/diff_nodif_mean.nii.gz ./rdif/rdif_nodif_mean.nii.gz
 
-    # Create acq_params from embedded meta for diff and rdif (preferred if available)
     diff_ped=$(get_meta_ped "diff"); diff_trt=$(get_meta_trt "diff")
     rdif_ped=$(get_meta_ped "rdif"); rdif_trt=$(get_meta_trt "rdif")
 
@@ -303,38 +352,26 @@ if [[ "$sstrip" == "true" ]]; then
 fi
 
 # -----------------------
-# TOPUP
+# TOPUP (try CLI; if fails, fall back to --config)
 # -----------------------
 if [[ -f my_unwarped_images.nii.gz ]]; then
   echo "my_unwarped_images.nii.gz exists. skipping topup"
 else
-  topup --imain=b0_images.nii.gz \
-        --datain=acq_params.txt \
-        --out=my_topup_results \
-        --fout=my_field \
-        --iout=my_unwarped_images \
-        $topup_mask_opt \
-        --warpres=${warpres} \
-        --subsamp=${subsamp} \
-        --fwhm=${fwhm} \
-        --miter=${miter} \
-        --lambda=${lambda} \
-        --ssqlambda=${ssqlambda} \
-        --regmod=${regmod} \
-        --estmov=${estmov} \
-        --minmet=${minmet} \
-        --splineorder=${splineorder} \
-        --numprec=${numprec} \
-        --interp=${interp} \
-        --scale=${scale01} \
-        --regrid=${regrid01}
+  set +e
+  run_topup_cli
+  topup_status=$?
+  set -e
+
+  if [[ $topup_status -ne 0 ]]; then
+    echo "topup CLI-style options failed (status=$topup_status). Falling back to --config mode."
+    run_topup_config
+  fi
 fi
 
 # Average unwarped b0s + brain mask (used for eddy)
 if [[ ! -f my_unwarped_images_avg.nii.gz ]]; then
   fslmaths my_unwarped_images.nii.gz -Tmean my_unwarped_images_avg.nii.gz
 fi
-
 if [[ ! -f my_unwarped_images_avg_brain_mask.nii.gz ]]; then
   bet my_unwarped_images_avg.nii.gz my_unwarped_images_avg_brain.nii.gz -m
 fi
@@ -347,16 +384,9 @@ if [[ -f data.nii.gz && -f bvals && -f bvecs && -f index.txt ]]; then
 else
   if [[ "$merge_full" == "true" ]]; then
     echo "mergefull=true: merging diff + rdif for eddy"
-
     [[ -f data.nii.gz ]] || fslmerge -t data.nii.gz ./diff/dwi.nii.gz ./rdif/dwi.nii.gz
-
-    # Merge bvecs/bvals (FSL format). Use 'paste' to concatenate columns.
-    if [[ ! -f bvecs ]]; then
-      paste ./diff/dwi.bvecs ./rdif/dwi.bvecs > bvecs
-    fi
-    if [[ ! -f bvals ]]; then
-      paste ./diff/dwi.bvals ./rdif/dwi.bvals > bvals
-    fi
+    [[ -f bvecs ]] || paste ./diff/dwi.bvecs ./rdif/dwi.bvecs > bvecs
+    [[ -f bvals ]] || paste ./diff/dwi.bvals ./rdif/dwi.bvals > bvals
 
     if [[ ! -f index.txt ]]; then
       indx=""
@@ -364,7 +394,6 @@ else
       for ((i=0; i<rdif_num; ++i)); do indx="${indx} 2"; done
       echo "$indx" > index.txt
     fi
-
   else
     echo "mergefull=false: using diff only for eddy"
     [[ -f data.nii.gz ]] || cp ./diff/dwi.nii.gz data.nii.gz
@@ -385,8 +414,9 @@ fi
 if [[ -f dwi/dwi.nii.gz ]]; then
   echo "Final dwi/dwi.nii.gz exists. skipping eddy"
 else
-  echo "Running eddy_openmp with --topup=my_topup_results (this applies topup to DWIs)"
+  echo "Running eddy_openmp with --topup=my_topup_results (applies topup to DWIs)"
 
+  # NOTE: removed --ref_scan because many builds don't support it; add back only if your eddy supports it.
   eddy_openmp \
     --imain=data.nii.gz \
     --mask=my_unwarped_images_avg_brain_mask.nii.gz \
@@ -395,8 +425,7 @@ else
     --bvecs=bvecs \
     --bvals=bvals \
     --topup=my_topup_results \
-    --out=eddy_corrected_data \
-    --ref_scan="${refvol}"
+    --out=eddy_corrected_data
 
   mv eddy_corrected_data.nii.gz dwi/dwi.nii.gz
   cp eddy_corrected_data.eddy_rotated_bvecs dwi/dwi.bvecs
@@ -412,21 +441,16 @@ cp my_unwarped_images_avg_brain_mask.nii.gz mask/mask.nii.gz
 # Cleanup / archive intermediates
 # -----------------------
 mkdir -p raw
-
-# Move eddy outputs (keep final in dwi/)
 mv eddy_corrected_data.* raw/ 2>/dev/null || true
-
-# Move other intermediates
 mv index.txt raw/ 2>/dev/null || true
 mv data.nii.gz raw/ 2>/dev/null || true
 mv bvals raw/ 2>/dev/null || true
 mv bvecs raw/ 2>/dev/null || true
 mv acq_params.txt raw/ 2>/dev/null || true
+mv topup_config.cnf raw/ 2>/dev/null || true
 mv b0_images*.nii.gz raw/ 2>/dev/null || true
 mv b0_images_mean* raw/ 2>/dev/null || true
 mv my_* raw/ 2>/dev/null || true
-
-# Keep working copies of diff/rdif if you want; otherwise move
 mv diff raw/ 2>/dev/null || true
 mv rdif raw/ 2>/dev/null || true
 
