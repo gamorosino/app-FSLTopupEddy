@@ -383,6 +383,21 @@ if [[ -f acq_params.txt ]]; then
 fi
 
 
+echo "=== TOPUP DIAGNOSTICS ==="
+which topup
+ls -l "$(which topup)"
+file "$(which topup)" || true
+head -n 5 "$(which topup)" || true
+
+echo "FSLDIR=${FSLDIR:-<unset>}"
+echo "PATH=$PATH"
+echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+
+# If it's a real ELF binary, this will list its library deps (and show missing ones)
+ldd "$(which topup)" || true
+
+
+
 ls -lh b0_images.nii.gz acq_params.txt topup_config.cnf || true
 fslinfo b0_images.nii.gz | egrep 'dim1|dim2|dim3|dim4'
 cat acq_params.txt
