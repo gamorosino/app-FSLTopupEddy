@@ -27,7 +27,7 @@ set -x
 #    rdif metadata embedded in config ._inputs[] with id=="rdif").
 ###############################################################################
 
-export LD_LIBRARY_PATH=/pylon5/tr4s8pp/shayashi/cuda-8.0/lib64:${LD_LIBRARY_PATH:-}
+#export LD_LIBRARY_PATH=/pylon5/tr4s8pp/shayashi/cuda-8.0/lib64:${LD_LIBRARY_PATH:-}
 
 CFG="config.json"
 if [[ ! -f "$CFG" ]]; then
