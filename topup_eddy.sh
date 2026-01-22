@@ -155,16 +155,20 @@ run_topup_cli() {
 }
 
 run_topup_config() {
-  local cnf="topup_config.cnf"
+  local cnf="$(pwd)/topup_config.cnf"
   write_topup_config "$cnf"
+
+  echo "=== topup_config.cnf ==="
+  ls -lh "$cnf"
+  head -n 50 "$cnf" || true
+
+  # Minimal invocation (older builds can be picky)
   topup --imain=b0_images.nii.gz \
         --datain=acq_params.txt \
         --config="$cnf" \
-        --out=my_topup_results \
-        --fout=my_field \
-        --iout=my_unwarped_images \
-        $topup_mask_opt --verbose
+        --out=my_topup_results
 }
+
 
 # -----------------------
 # Sanity checks
