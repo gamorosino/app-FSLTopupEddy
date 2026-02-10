@@ -27,11 +27,11 @@ set -x
 #    rdif metadata embedded in config ._inputs[] with id=="rdif").
 ###############################################################################
 
-export FSLDIR=/usr/share/fsl/5.0
-export PATH=${FSLDIR}/bin:${PATH}
+#export FSLDIR=/usr/share/fsl/5.0
+#export PATH=${FSLDIR}/bin:${PATH}
 
 # If you truly need CUDA libs for eddy_cuda later, keep ONLY the cuda lib path:
-export LD_LIBRARY_PATH=/pylon5/tr4s8pp/shayashi/cuda-8.0/lib64:${LD_LIBRARY_PATH:-}
+#export LD_LIBRARY_PATH=/pylon5/tr4s8pp/shayashi/cuda-8.0/lib64:${LD_LIBRARY_PATH:-}
 
 
 CFG="config.json"
