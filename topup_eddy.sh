@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-set -x
+#set -x
 
 ###############################################################################
 # DWI distortion + motion/eddy correction using TOPUP + EDDY (eddy_openmp)
@@ -32,6 +32,21 @@ set -x
 
 # If you truly need CUDA libs for eddy_cuda later, keep ONLY the cuda lib path:
 #export LD_LIBRARY_PATH=/pylon5/tr4s8pp/shayashi/cuda-8.0/lib64:${LD_LIBRARY_PATH:-}
+
+# Force FSL6 first
+export FSLDIR=/usr/local/fsl
+if [[ -f "$FSLDIR/etc/fslconf/fsl.sh" ]]; then
+  source "$FSLDIR/etc/fslconf/fsl.sh"
+fi
+export PATH="$FSLDIR/bin:$PATH"
+hash -r
+
+
+for cmd in fslinfo topup eddy_openmp fslmaths fslmerge bet select_dwi_vols; do
+  command -v "$cmd" >/dev/null || { echo "ERROR: missing $cmd"; exit 1; }
+done
+echo "topup=$(command -v topup)"
+
 
 
 CFG="config.json"
@@ -82,9 +97,71 @@ reslice=$(jq -r '.reslice // "false"' "$CFG")
 merge_full=$(jq -r '.mergefull // "false"' "$CFG")
 sstrip=$(jq -r '.sstrip // "false"' "$CFG")
 
+DEBUG=1
+
 # -----------------------
 # Helpers
 # -----------------------
+
+log() { echo "[$(date +'%F %T')] $*"; }
+
+debug_dump() {
+  [[ "${DEBUG:-0}" -eq 1 ]] || return 0
+
+  log "=== EDDY INPUT DEBUG ==="
+  log "data dim4: $(fslinfo data.nii.gz | awk '/^dim4/ {print $2}')"
+
+  log "bvals (last 120 chars):"
+  tail -c 120 bvals | cat -A; echo
+
+  log "bvecs (first 2 lines):"
+  head -n 2 bvecs || true
+
+  python - <<'PY'
+import numpy as np
+b = np.loadtxt("bvals").reshape(-1)
+print("bvals_tokens=", b.size, "unique_shells=", len(set(b.tolist())), "min=", b.min(), "max=", b.max())
+v = np.loadtxt("bvecs")
+print("bvecs_shape=", v.shape)
+PY
+}
+
+sanitize_and_validate_eddy_inputs() {
+  cp -f ./diff/dwi.bvecs bvecs
+  # bvals: force single line + newline at end
+  tr -s '[:space:]' ' ' < bvals | tr '\n' ' ' | sed 's/^ *//; s/ *$//' > bvals.tmp
+  printf "%s\n" "$(cat bvals.tmp)" > bvals
+  rm -f bvals.tmp
+
+  # bvecs: keep 3 lines, only clean spaces within each line
+  sed 's/,/ /g; s/[[:space:]]\+/ /g; s/^ *//; s/ *$//' bvecs > bvecs.tmp
+  mv bvecs.tmp bvecs
+
+  local nvol
+  nvol=$(fslinfo data.nii.gz | awk '/^dim4/ {print $2}')
+
+  python - <<PY
+import numpy as np, sys
+nvol = int("$nvol")
+b = np.loadtxt("bvals").reshape(-1)
+if b.size != nvol:
+    sys.stdout.write("ERROR: bvals tokens (%d) != data dim4 (%d)\\n" % (b.size, nvol))
+    sys.exit(2)
+
+v = np.loadtxt("bvecs")
+if v.shape == (3, nvol):
+    sys.exit(0)
+if v.shape == (nvol, 3):
+    np.savetxt("bvecs", v.T, fmt="%.10g")
+    sys.exit(0)
+
+sys.stdout.write("ERROR: bvecs has unexpected shape %s; expected (3,%d) or (%d,3)\\n" % (str(v.shape), nvol, nvol))
+sys.exit(3)
+PY
+}
+
+
+
 pe_to_vec() {
   case "$1" in
     i)  echo "1 0 0" ;;
@@ -167,12 +244,15 @@ run_topup_config() {
   ls -lh "$cnf"
   head -n 50 "$cnf" || true
 
-  # Minimal invocation (older builds can be picky)
   topup --imain=b0_images.nii.gz \
         --datain=acq_params.txt \
         --config="$cnf" \
-        --out=my_topup_results
+        --out=my_topup_results \
+        --fout=my_field \
+        --iout=my_unwarped_images \
+        $topup_mask_opt
 }
+
 
 
 # -----------------------
@@ -479,15 +559,24 @@ else
   echo "Running eddy_openmp with --topup=my_topup_results (applies topup to DWIs)"
 
   # NOTE: removed --ref_scan because many builds don't support it; add back only if your eddy supports it.
-  eddy_openmp \
-    --imain=data.nii.gz \
-    --mask=my_unwarped_images_avg_brain_mask.nii.gz \
-    --acqp=acq_params.txt \
-    --index=index.txt \
-    --bvecs=bvecs \
-    --bvals=bvals \
-    --topup=my_topup_results \
-    --out=eddy_corrected_data
+
+	EDDY_OPTS=()
+	EDDY_OPTS+=(--data_is_shelled)   # comment this out if you don't want it always
+
+	[ "${DEBUG}" -eq 1 ] && debug_dump
+	sanitize_and_validate_eddy_inputs
+
+	eddy_openmp \
+	--imain=data.nii.gz \
+	--mask=my_unwarped_images_avg_brain_mask.nii.gz \
+	--acqp=acq_params.txt \
+	--index=index.txt \
+	--bvecs=bvecs \
+	--bvals=bvals \
+	--topup=my_topup_results \
+	"${EDDY_OPTS[@]}" \
+	--out=eddy_corrected_data
+
 
   mv eddy_corrected_data.nii.gz dwi/dwi.nii.gz
   cp eddy_corrected_data.eddy_rotated_bvecs dwi/dwi.bvecs
