@@ -1,3 +1,6 @@
+[![Abcdspec-compliant](https://img.shields.io/badge/ABCD_Spec-v1.1-green.svg)](https://github.com/brainlife/abcd-spec)
+[![Run on Brainlife.io](https://img.shields.io/badge/Brainlife-brainlife.app.887-blue.svg)](https://doi.org/10.25663/brainlife.app.887)
+
 # FSL Topup & Eddy
 
 This application preprocesses diffusion-weighted MRI (DWI) data using **FSL**’s *topup* and *eddy* tools to correct for:
@@ -16,8 +19,6 @@ and produces motion- and distortion-corrected DWI data together with a correspon
 All relevant configuration parameters for *topup* and *eddy* are exposed to the user.
 
 ---
-[![Abcdspec-compliant](https://img.shields.io/badge/ABCD_Spec-v1.1-green.svg)](https://github.com/brainlife/abcd-spec)
-[![Run on Brainlife.io](https://img.shields.io/badge/Brainlife-brainlife.app.887-blue.svg)](https://doi.org/10.25663/brainlife.app.887)
 
 ## Authors
 
