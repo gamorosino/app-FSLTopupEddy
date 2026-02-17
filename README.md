@@ -16,6 +16,8 @@ and produces motion- and distortion-corrected DWI data together with a correspon
 All relevant configuration parameters for *topup* and *eddy* are exposed to the user.
 
 ---
+[![Abcdspec-compliant](https://img.shields.io/badge/ABCD_Spec-v1.1-green.svg)](https://github.com/brainlife/abcd-spec)
+[![Run on Brainlife.io](https://img.shields.io/badge/Brainlife-brainlife.app.887-blue.svg)](https://doi.org/10.25663/brainlife.app.887)
 
 ## Authors
 
@@ -35,6 +37,8 @@ All relevant configuration parameters for *topup* and *eddy* are exposed to the 
 [![NSF-ACI-1916518](https://img.shields.io/badge/NSF_ACI-1916518-blue.svg)](https://nsf.gov/awardsearch/showAward?AWD_ID=1916518)
 [![NSF-IIS-1912270](https://img.shields.io/badge/NSF_IIS-1912270-blue.svg)](https://nsf.gov/awardsearch/showAward?AWD_ID=1912270)
 [![NIH-NIBIB-R01EB029272](https://img.shields.io/badge/NIH_NIBIB-R01EB029272-green.svg)](https://grantome.com/grant/NIH/R01-EB029272-01)
+[![NIH-NINDS-US24NS140384](https://img.shields.io/badge/NIH_NINDS-US24NS140384-green.svg)](https://reporter.nih.gov/search/OwP3wLYKIkGQ3uS2ODPUYw/project-details/11033905)
+[![NIH-NINDS-UM1NS122207](https://img.shields.io/badge/NIH_NINDS-UM1NS1222074-green.svg)](https://reporter.nih.gov/search/pRbkN1_vbUmz-GTMYDjwMw/project-details/10664257)
 ---
 
 Please cite the following foundational works when publishing results generated using this application.
