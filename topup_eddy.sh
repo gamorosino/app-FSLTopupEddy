@@ -127,13 +127,13 @@ PY
 }
 
 sanitize_and_validate_eddy_inputs() {
-  cp -f ./diff/dwi.bvecs bvecs
+  # DO NOT overwrite bvecs here — it might be merged already
   # bvals: force single line + newline at end
   tr -s '[:space:]' ' ' < bvals | tr '\n' ' ' | sed 's/^ *//; s/ *$//' > bvals.tmp
   printf "%s\n" "$(cat bvals.tmp)" > bvals
   rm -f bvals.tmp
 
-  # bvecs: keep 3 lines, only clean spaces within each line
+  # bvecs: clean whitespace but preserve 3-row structure
   sed 's/,/ /g; s/[[:space:]]\+/ /g; s/^ *//; s/ *$//' bvecs > bvecs.tmp
   mv bvecs.tmp bvecs
 
@@ -159,6 +159,7 @@ sys.stdout.write("ERROR: bvecs has unexpected shape %s; expected (3,%d) or (%d,3
 sys.exit(3)
 PY
 }
+
 
 
 
@@ -297,10 +298,26 @@ regrid01=$(bool_to_01 "$regrid")
 # -----------------------
 # Folder structures
 # -----------------------
+need_rdif=false
+if [[ "$use_epi_topup" == "false" && -n "$rdif" ]]; then
+  need_rdif=true
+fi
+
 mkdir -p dwi mask raw diff
-if [[ "$merge_full" == "true" ]]; then
+if [[ "$need_rdif" == "true" ]]; then
   mkdir -p rdif
 fi
+
+if [[ "$need_rdif" == "true" ]]; then
+  if [[ -z "$rdif" || -z "$rbvc" || -z "$rbvl" ]]; then
+    echo "ERROR: rdif present but rbvc/rbvl missing (needed to extract b0)."
+    exit 1
+  fi
+  for f in "$rdif" "$rbvc" "$rbvl"; do
+    [[ -f "$f" ]] || { echo "ERROR: missing $f"; exit 1; }
+  done
+fi
+
 
 # -----------------------
 # Copy inputs into working structure (unless reslice is true)
@@ -314,7 +331,7 @@ if [[ "$reslice" == "false" ]]; then
     cp -v "$bval" ./diff/dwi.bvals
   fi
 
-  if [[ "$merge_full" == "true" ]]; then
+  if [[ "$need_rdif" == "true" ]]; then
     if [[ -f ./rdif/dwi.nii.gz ]]; then
       echo "rdif/dwi.nii.gz exists. skipping copying"
     else
@@ -323,6 +340,7 @@ if [[ "$reslice" == "false" ]]; then
       cp -v "$rbvl" ./rdif/dwi.bvals
     fi
   fi
+
 fi
 
 # -----------------------
@@ -388,11 +406,12 @@ else
   else
     echo "epi1/epi2 not provided; building topup inputs by extracting b0 from DWI(s)"
 
-    if [[ "$merge_full" != "true" ]]; then
-      echo "ERROR: No epi1/epi2 provided and mergefull!=true (no opposite-PE pair available for topup)."
-      echo "Provide epi1/epi2 or provide rdif+mergefull=true."
-      exit 1
-    fi
+	if [[ -z "$rdif" || ! -f "$rdif" ]]; then
+	echo "ERROR: No epi1/epi2 and no rdif available (no opposite-PE pair for topup)."
+	echo "Provide epi1/epi2 or provide rdif."
+	exit 1
+	fi
+
 
     for PHASE in diff rdif; do
       if [[ ! -f ./${PHASE}/${PHASE}_nodif.nii.gz ]]; then
@@ -487,11 +506,14 @@ ldd "$(which topup)" || true
 
 
 
-ls -lh b0_images.nii.gz acq_params.txt topup_config.cnf || true
-fslinfo b0_images.nii.gz | egrep 'dim1|dim2|dim3|dim4'
-cat acq_params.txt
-head -n 5 topup_config.cnf || true
-which topup
+ls -lh b0_images.nii.gz acq_params.txt || true
+if [[ -f topup_config.cnf ]]; then
+  ls -lh topup_config.cnf
+  head -n 5 topup_config.cnf
+else
+  echo "topup_config.cnf not present (topup likely ran via CLI or was skipped)"
+fi
+
 
 # -----------------------
 # TOPUP (try CLI; if fails, fall back to --config)
@@ -563,7 +585,7 @@ else
 	EDDY_OPTS=()
 	EDDY_OPTS+=(--data_is_shelled)   # comment this out if you don't want it always
 
-	[ "${DEBUG}" -eq 1 ] && debug_dump
+	[[ "${DEBUG:-0}" -eq 1 ]] && debug_dump
 	sanitize_and_validate_eddy_inputs
 
 	eddy_openmp \
