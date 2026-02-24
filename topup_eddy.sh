@@ -73,6 +73,10 @@ epi2=$(jq -r '.epi2 // empty' "$CFG")
 epi1_json=$(jq -r '.epi1_json // empty' "$CFG")
 epi2_json=$(jq -r '.epi2_json // empty' "$CFG")
 
+# Legacy (Brainlife) metadata fallback
+encode=$(jq -r '.encode // empty' "$CFG")   # expected "AP" or "PA"
+param=$(jq -r '.param // empty' "$CFG")     # TotalReadoutTime (seconds)
+
 # Topup options (kept from your original style)
 warpres=$(jq -r '.warpres // empty' "$CFG")
 subsamp=$(jq -r '.subsamp // empty' "$CFG")
@@ -124,6 +128,49 @@ fi
 # -----------------------
 # Helpers
 # -----------------------
+
+# Legacy fallback: derive PhaseEncodingDirection/TotalReadoutTime from encode+param
+# Convention used here:
+#   AP => j
+#   PA => j-
+# And rdif is assumed to be the reverse of diff.
+get_legacy_ped_trt() {
+  local which="$1"  # "diff" or "rdif"
+
+  [[ -n "${encode:-}" && -n "${param:-}" ]] || return 1
+
+  # validate encode
+  if [[ "$encode" != "AP" && "$encode" != "PA" ]]; then
+    echo "ERROR: encode must be 'AP' or 'PA' (got: '$encode')"
+    return 2
+  fi
+
+  # validate param numeric-ish
+  if ! awk -v x="$param" 'BEGIN{exit(x+0==x?0:1)}'; then
+    echo "ERROR: param must be numeric TotalReadoutTime in seconds (got: '$param')"
+    return 3
+  fi
+
+  local diff_ped=""
+  if [[ "$encode" == "AP" ]]; then
+    diff_ped="j"
+  else
+    diff_ped="j-"
+  fi
+
+  local rdif_ped=""
+  if [[ "$diff_ped" == "j" ]]; then
+    rdif_ped="j-"
+  else
+    rdif_ped="j"
+  fi
+
+  if [[ "$which" == "diff" ]]; then
+    echo "$diff_ped $param"
+  else
+    echo "$rdif_ped $param"
+  fi
+}
 
 log() { echo "[$(date +'%F %T')] $*"; }
 
@@ -383,12 +430,19 @@ else
   if [[ "$use_epi_topup" == "true" ]]; then
     echo "Using epi1/epi2 for topup"
 
-    diff_ped=$(get_meta_ped "diff")
-    diff_trt=$(get_meta_trt "diff")
-    if [[ -z "$diff_ped" || -z "$diff_trt" ]]; then
-      echo "ERROR: diffusion PhaseEncodingDirection/TotalReadoutTime not found in embedded config meta (_inputs id==diff)."
+  diff_ped=$(get_meta_ped "diff")
+  diff_trt=$(get_meta_trt "diff")
+
+  if [[ -z "$diff_ped" || -z "$diff_trt" ]]; then
+    if [[ -n "${encode:-}" && -n "${param:-}" ]]; then
+      read -r diff_ped diff_trt < <(get_legacy_ped_trt diff)
+      echo "WARNING: diff embedded meta missing; using legacy encode/param for ordering (encode=$encode, param=$param)"
+    else
+      echo "ERROR: diffusion PhaseEncodingDirection/TotalReadoutTime not found for diff."
+      echo "Provide _inputs meta for diff or legacy encode/param."
       exit 1
     fi
+  fi
 
     epi1_ped=$(get_pe_dir_file "$epi1_json")
     epi2_ped=$(get_pe_dir_file "$epi2_json")
@@ -449,10 +503,20 @@ else
     diff_ped=$(get_meta_ped "diff"); diff_trt=$(get_meta_trt "diff")
     rdif_ped=$(get_meta_ped "rdif"); rdif_trt=$(get_meta_trt "rdif")
 
+    # Fallback to legacy encode/param if embedded meta is missing
     if [[ -z "$diff_ped" || -z "$diff_trt" || -z "$rdif_ped" || -z "$rdif_trt" ]]; then
-      echo "ERROR: rdif/diff embedded meta missing; cannot create acq_params robustly."
-      echo "Add embedded meta for id==rdif or use epi1/epi2 inputs."
-      exit 1
+      if [[ -n "${encode:-}" && -n "${param:-}" ]]; then
+        read -r diff_ped diff_trt < <(get_legacy_ped_trt diff)
+        read -r rdif_ped rdif_trt < <(get_legacy_ped_trt rdif)
+        echo "WARNING: embedded PhaseEncodingDirection/TotalReadoutTime missing; using legacy encode/param (encode=$encode, param=$param)"
+      else
+        echo "ERROR: cannot determine acq_params."
+        echo "Provide either:"
+        echo "  (a) _inputs[].meta.PhaseEncodingDirection + _inputs[].meta.TotalReadoutTime for diff and rdif, or"
+        echo "  (b) legacy encode + param in config.json, or"
+        echo "  (c) epi1/epi2 + epi1_json/epi2_json"
+        exit 1
+      fi
     fi
 
     vec_a=$(pe_to_vec "$diff_ped"); vec_b=$(pe_to_vec "$rdif_ped")
