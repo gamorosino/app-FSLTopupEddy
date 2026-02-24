@@ -96,8 +96,30 @@ refvol=$(jq -r '.refvol // 0' "$CFG")
 reslice=$(jq -r '.reslice // "false"' "$CFG")
 merge_full=$(jq -r '.mergefull // "false"' "$CFG")
 sstrip=$(jq -r '.sstrip // "false"' "$CFG")
+eddy_cuda=$(jq -r '.eddy_cuda // "false"' "$CFG")
 
 DEBUG=1
+
+EDDY_BIN="eddy_openmp"
+if [[ "$eddy_cuda" == "true" ]]; then
+  EDDY_BIN="eddy_cuda"
+
+  # basic sanity: binary exists
+  command -v eddy_cuda >/dev/null || {
+    echo "ERROR: eddy_cuda requested (eddy_cuda=true) but eddy_cuda not found in PATH"
+    exit 1
+  }
+
+  # optional sanity: GPU visible
+  if command -v nvidia-smi >/dev/null; then
+    nvidia-smi >/dev/null || {
+      echo "ERROR: eddy_cuda requested but nvidia-smi failed (no GPU visible?)"
+      exit 1
+    }
+  else
+    echo "WARNING: nvidia-smi not found; cannot verify GPU visibility inside container"
+  fi
+fi
 
 # -----------------------
 # Helpers
@@ -578,7 +600,7 @@ fi
 if [[ -f dwi/dwi.nii.gz ]]; then
   echo "Final dwi/dwi.nii.gz exists. skipping eddy"
 else
-  echo "Running eddy_openmp with --topup=my_topup_results (applies topup to DWIs)"
+  echo "Running $EDDY_BIN with --topup=my_topup_results"
 
   # NOTE: removed --ref_scan because many builds don't support it; add back only if your eddy supports it.
 
@@ -588,7 +610,7 @@ else
 	[[ "${DEBUG:-0}" -eq 1 ]] && debug_dump
 	sanitize_and_validate_eddy_inputs
 
-	eddy_openmp \
+  "$EDDY_BIN" \
 	--imain=data.nii.gz \
 	--mask=my_unwarped_images_avg_brain_mask.nii.gz \
 	--acqp=acq_params.txt \
