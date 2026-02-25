@@ -129,41 +129,40 @@ fi
 # Helpers
 # -----------------------
 
-# Legacy fallback: derive PhaseEncodingDirection/TotalReadoutTime from encode+param
-# Convention used here:
-#   AP => j
-#   PA => j-
-# And rdif is assumed to be the reverse of diff.
+# Legacy fallback: replicate original Brainlife encode/param -> acq_params.txt mapping
+# diff is always row 1, rdif is always row 2 (same order as b0_images merge)
 get_legacy_ped_trt() {
   local which="$1"  # "diff" or "rdif"
 
   [[ -n "${encode:-}" && -n "${param:-}" ]] || return 1
 
-  # validate encode
-  if [[ "$encode" != "AP" && "$encode" != "PA" ]]; then
-    echo "ERROR: encode must be 'AP' or 'PA' (got: '$encode')"
-    return 2
-  fi
-
   # validate param numeric-ish
   if ! awk -v x="$param" 'BEGIN{exit(x+0==x?0:1)}'; then
-    echo "ERROR: param must be numeric TotalReadoutTime in seconds (got: '$param')"
+    echo "ERROR: param must be numeric TotalReadoutTime in seconds (got: '$param')" >&2
     return 3
   fi
 
-  local diff_ped=""
-  if [[ "$encode" == "AP" ]]; then
-    diff_ped="j"
-  else
-    diff_ped="j-"
-  fi
+  local diff_ped="" rdif_ped=""
 
-  local rdif_ped=""
-  if [[ "$diff_ped" == "j" ]]; then
-    rdif_ped="j-"
-  else
-    rdif_ped="j"
-  fi
+  case "$encode" in
+    PA)
+      diff_ped="j"
+      rdif_ped="j-"
+      ;;
+    AP)
+      diff_ped="j-"
+      rdif_ped="j"
+      ;;
+    LR)
+      diff_ped="i-"
+      rdif_ped="i"
+      ;;
+    *)
+      # legacy "else" branch (effectively RL)
+      diff_ped="i"
+      rdif_ped="i-"
+      ;;
+  esac
 
   if [[ "$which" == "diff" ]]; then
     echo "$diff_ped $param"
