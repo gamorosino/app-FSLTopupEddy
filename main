@@ -18,8 +18,15 @@ if [[ ${reslice} == 'true' ]]; then
 	time singularity exec -e -B `pwd`/license.txt:/usr/local/freesurfer/license.txt docker://brainlife/freesurfer:6.0.0 ./reslice.sh
 fi
 
-time singularity exec -e --nv docker://brainlife/fsl:6.0.4-patched2 ./topup_eddy.sh
-
+time singularity exec -e --nv docker://vnmd/fsl_6.0.7.19 bash -lc '
+unset FSLDIR
+export FSLDIR=/opt/fsl-6.0.7.19
+source $FSLDIR/etc/fslconf/fsl.sh
+export PATH=$FSLDIR/bin:/usr/bin:/bin
+hash -r
+./topup_eddy.sh
+'
+#time singularity exec -e --nv docker://brainlife/fsl:6.0.4-patched2 ./topup_eddy.sh
 # time singularity exec -e docker://brainlife/fsl:6.0.1 ./eddy_qc.sh
 
 if [ -s ./dwi/dwi.nii.gz ];

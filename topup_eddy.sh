@@ -27,27 +27,194 @@ set -euo pipefail
 #    rdif metadata embedded in config ._inputs[] with id=="rdif").
 ###############################################################################
 
-#export FSLDIR=/usr/share/fsl/5.0
-#export PATH=${FSLDIR}/bin:${PATH}
-
-# If you truly need CUDA libs for eddy_cuda later, keep ONLY the cuda lib path:
-#export LD_LIBRARY_PATH=/pylon5/tr4s8pp/shayashi/cuda-8.0/lib64:${LD_LIBRARY_PATH:-}
-
-# Force FSL6 first
-export FSLDIR=/usr/local/fsl
-if [[ -f "$FSLDIR/etc/fslconf/fsl.sh" ]]; then
-  source "$FSLDIR/etc/fslconf/fsl.sh"
-fi
-export PATH="$FSLDIR/bin:$PATH"
+# Respect container FSLDIR (main sets it), default to vnmd image path
+export FSLDIR="${FSLDIR:-/opt/fsl-6.0.7.19}"
+source "$FSLDIR/etc/fslconf/fsl.sh"
+export PATH="$FSLDIR/bin:/usr/bin:/bin"
 hash -r
 
 
-for cmd in fslinfo topup eddy_openmp fslmaths fslmerge bet select_dwi_vols; do
+for cmd in fslinfo topup fslmaths fslmerge bet select_dwi_vols; do
   command -v "$cmd" >/dev/null || { echo "ERROR: missing $cmd"; exit 1; }
 done
 echo "topup=$(command -v topup)"
 
 
+
+
+dump_cfg_vars() {
+  [[ "$DEBUG" == "1" ]] || return 0
+  echo "===== DEBUG: parsed config vars ====="
+  echo "PWD=$(pwd)"
+  echo "CFG=$CFG"
+  echo "FSLDIR=$FSLDIR"
+  echo "PATH=$PATH"
+  echo "JQ_BIN=${JQ_BIN:-<shim>}"
+  echo
+
+  # Show key values
+  printf "diff=%q\nbvec=%q\nbval=%q\n" "$diff" "$bvec" "$bval"
+  printf "rdif=%q\nrbvc=%q\nrbvl=%q\n" "$rdif" "$rbvc" "$rbvl"
+  printf "epi1=%q\nepi2=%q\nepi1_json=%q\nepi2_json=%q\n" "$epi1" "$epi2" "$epi1_json" "$epi2_json"
+  printf "encode=%q\nparam=%q\n" "$encode" "$param"
+  printf "merge_full=%q\nreslice=%q\nsstrip=%q\neddy_cuda=%q\ncuda_version=%q\n" \
+    "$merge_full" "$reslice" "$sstrip" "$eddy_cuda" "$cuda_version"
+  printf "refvol=%q\n" "$refvol"
+  echo
+
+  # Existence checks (this is the money)
+  echo "===== DEBUG: file existence ====="
+  for f in "$CFG" "$diff" "$bvec" "$bval" "$rdif" "$rbvc" "$rbvl" "$epi1" "$epi2" "$epi1_json" "$epi2_json"; do
+    [[ -z "$f" ]] && continue
+    if [[ -e "$f" ]]; then
+      echo "OK:  $f"
+    else
+      echo "MISS:$f"
+    fi
+  done
+  echo "===================================="
+}
+
+# -----------------------
+# JSON reader fallback (jq shim with defaults + --arg)
+# -----------------------
+JQ_BIN="$(type -P jq || true)"
+
+json_get() {
+  # Usage:
+  #   json_get '<expr>' [--arg NAME VALUE ...]
+  local expr="$1"; shift || true
+
+  # Collect --arg pairs (we only really need ID, but make it generic)
+  local args=()
+  while [[ "${1:-}" == "--arg" ]]; do
+    shift
+    local k="${1:-}"; shift
+    local v="${1:-}"; shift
+    args+=("$k=$v")
+  done
+
+  if [[ -n "${JQ_BIN:-}" ]]; then
+    # If real jq exists, just use it
+    "$JQ_BIN" -r "$expr" "$CFG"
+    return
+  fi
+
+  # Python fallback: supports:
+  #   .key
+  #   .key // empty
+  #   .key // "false"  (or any string)
+  #   .key // 0        (or any number)
+  #   ._inputs[] | select(.id==$ID) | .meta.FIELD // empty
+  python3 - "$CFG" "$expr" "${args[@]}" <<'PY'
+import json,sys,re
+
+cfg=sys.argv[1]
+expr=sys.argv[2].strip()
+kv = {}
+for a in sys.argv[3:]:
+    if "=" in a:
+        k,v = a.split("=",1)
+        kv[k]=v
+
+with open(cfg) as f:
+    d=json.load(f)
+
+def print_val(v):
+    if v is None:
+        print("")
+    elif isinstance(v, bool):
+        print("true" if v else "false")
+    elif isinstance(v,(dict,list)):
+        print(json.dumps(v))
+    else:
+        print(v)
+
+# Handle: ._inputs[] | select(.id==$ID) | .meta.FIELD // empty
+m = re.match(r'^\._inputs\[\]\s*\|\s*select\(\.id==\$(\w+)\)\s*\|\s*\.meta\.([A-Za-z0-9_]+)\s*(//\s*empty)?\s*$', expr)
+if m:
+    varname = m.group(1)
+    field = m.group(2)
+    want = kv.get(varname,"")
+    for it in d.get("_inputs",[]) or []:
+        if str(it.get("id","")) == want:
+            meta = it.get("meta",{}) or {}
+            print_val(meta.get(field,""))
+            sys.exit(0)
+    print("")
+    sys.exit(0)
+
+# Handle: .key [// default]
+m = re.match(r'^\.(\w+)\s*(//\s*(empty|"[^"]*"|[-+]?\d+(?:\.\d+)?))?\s*$', expr)
+if not m:
+    # unsupported expression
+    print("")
+    sys.exit(0)
+
+key = m.group(1)
+default_raw = m.group(3)
+
+v = d.get(key, None)
+
+if v is None or v == "":
+    if default_raw is None or default_raw == "empty":
+        print("")
+    elif default_raw.startswith('"') and default_raw.endswith('"'):
+        print(default_raw[1:-1])
+    else:
+        print(default_raw)
+else:
+    print_val(v)
+PY
+}
+
+# jq compatibility shim ONLY if no real jq binary exists
+if [[ -z "${JQ_BIN:-}" ]]; then
+  jq() {
+    # supports: jq -r [--arg K V ...] '<expr>' "$CFG"
+    [[ "${1:-}" == "-r" ]] && shift
+
+    local args=()
+    while [[ "${1:-}" == "--arg" ]]; do
+      args+=("$1" "$2" "$3")
+      shift 3
+    done
+
+    local expr="${1:-}"; shift || true
+    # ignore filename arg; always reads $CFG
+    json_get "$expr" "${args[@]}"
+  }
+fi
+
+pick_eddy_cuda() {
+  local bindir="${FSLDIR:-/usr/local/fsl}/bin"
+
+  # if user pins a version, prefer that
+  if [[ -n "${cuda_version:-}" ]]; then
+    local want="${bindir}/eddy_cuda${cuda_version}"
+    [[ -x "$want" ]] && { echo "$want"; return 0; }
+    echo "ERROR: requested cuda_version=${cuda_version} not available in ${bindir}" >&2
+    ls -1 "${bindir}"/eddy_cuda* 2>/dev/null >&2 || true
+    return 3
+  fi
+
+  # prefer versioned binaries if present, else fall back to plain eddy_cuda
+  mapfile -t cuda_bins < <(ls -1 "${bindir}"/eddy_cuda* 2>/dev/null | grep -E 'eddy_cuda[0-9]+' || true)
+  if [[ ${#cuda_bins[@]} -gt 0 ]]; then
+    local latest
+    latest=$(printf "%s\n" "${cuda_bins[@]##*/}" | sed 's/^eddy_cuda//' | sort -V | tail -n 1)
+    echo "${bindir}/eddy_cuda${latest}"
+    return 0
+  fi
+
+  if [[ -x "${bindir}/eddy_cuda" ]]; then
+    echo "${bindir}/eddy_cuda"
+    return 0
+  fi
+
+  echo "ERROR: eddy_cuda requested but no eddy_cuda binaries found in ${bindir}" >&2
+  return 2
+}
 
 CFG="config.json"
 if [[ ! -f "$CFG" ]]; then
@@ -101,28 +268,53 @@ reslice=$(jq -r '.reslice // "false"' "$CFG")
 merge_full=$(jq -r '.mergefull // "false"' "$CFG")
 sstrip=$(jq -r '.sstrip // "false"' "$CFG")
 eddy_cuda=$(jq -r '.eddy_cuda // "false"' "$CFG")
+cuda_version=$(jq -r '.cuda_version // empty' "$CFG")
 
 DEBUG=1
 
-EDDY_BIN="eddy_openmp"
+# Internal debug toggle (not from config.json)
+DEBUG="${DEBUG:-0}"
+
+dump_cfg_vars
+
+# normalize boolean-ish strings to "true"/"false"
+norm_bool () {
+  local x="${1:-}"
+  x="${x,,}"                 # lowercase
+  case "$x" in
+    true|false) echo "$x" ;;
+    1) echo "true" ;;
+    0) echo "false" ;;
+    "") echo "" ;;           # keep empty if you rely on empty elsewhere
+    *) echo "$x" ;;          # leave untouched (or force false if you prefer)
+  esac
+}
+
+reslice="$(norm_bool "$reslice")"
+merge_full="$(norm_bool "$merge_full")"
+sstrip="$(norm_bool "$sstrip")"
+eddy_cuda="$(norm_bool "$eddy_cuda")"
+scale="$(norm_bool "$scale")"
+regrid="$(norm_bool "$regrid")"
+
+
+EDDY_BIN=""
+
 if [[ "$eddy_cuda" == "true" ]]; then
-  EDDY_BIN="eddy_cuda"
-
-  # basic sanity: binary exists
-  command -v eddy_cuda >/dev/null || {
-    echo "ERROR: eddy_cuda requested (eddy_cuda=true) but eddy_cuda not found in PATH"
-    exit 1
-  }
-
-  # optional sanity: GPU visible
-  if command -v nvidia-smi >/dev/null; then
-    nvidia-smi >/dev/null || {
-      echo "ERROR: eddy_cuda requested but nvidia-smi failed (no GPU visible?)"
-      exit 1
-    }
+  EDDY_BIN="$(pick_eddy_cuda)" || exit $?
+  echo "Using GPU eddy: $(basename "$EDDY_BIN")"
+else
+  if command -v eddy_openmp >/dev/null; then
+    EDDY_BIN="eddy_openmp"
+  elif command -v eddy_cpu >/dev/null; then
+    EDDY_BIN="eddy_cpu"
+  elif command -v eddy >/dev/null; then
+    EDDY_BIN="eddy"
   else
-    echo "WARNING: nvidia-smi not found; cannot verify GPU visibility inside container"
+    echo "ERROR: no CPU eddy binary found (expected eddy_openmp or eddy_cpu)"
+    exit 1
   fi
+  echo "Using CPU eddy: $(basename "$EDDY_BIN")"
 fi
 
 # -----------------------
