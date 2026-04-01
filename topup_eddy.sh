@@ -672,6 +672,10 @@ else
 
 	[[ "${DEBUG:-0}" -eq 1 ]] && debug_dump
 	sanitize_and_validate_eddy_inputs
+		
+	echo "sanity check on dimensions.."
+	echo "data info:  "$(  fslhd data.nii.gz )
+	echo "mask info:  "$(  fslhd my_unwarped_images_avg_brain_mask.nii.gz )
 
   "$EDDY_BIN" \
 	--imain=data.nii.gz \
