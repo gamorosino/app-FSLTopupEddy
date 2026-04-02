@@ -466,9 +466,26 @@ else
     fi
 
 	#########################################################################
-	####### TODO: Rigid Alignment of EPIs data to DWI
+	####### Rigid Alignment of EPIs data to DWI
 	#########################################################################
 
+	ref="diff/dwi.nii.gz"
+
+	b0_a="path/to/b0_a.nii.gz"
+	b0_B="path/to/b0_B.nii.gz"
+	
+	aligned_b0_a="path/to/b0_a_aligned.nii.gz"
+	aligned_b0_B="path/to/b0_B_aligned.nii.gz"
+	
+	mat_b0_a="path/to/b0_a_to_dwi.mat"
+	mat_b0_B="path/to/b0_B_to_dwi.mat"
+
+	flirt -in "$b0_a" -ref "$ref" -out "$aligned_b0_a" -omat "$mat_b0_a" -dof 6
+	flirt -in "$b0_B" -ref "$ref" -out "$aligned_b0_B" -omat "$mat_b0_B" -dof 6
+
+	b0_a=$aligned_b0_a
+	b0_b=$aligned_b0_b
+	
     [[ -f b0_images.nii.gz ]] || fslmerge -t b0_images.nii.gz "$b0_a" "$b0_b"
 
     vec_a=$(pe_to_vec "$(get_pe_dir_file "$json_a")")
@@ -490,6 +507,7 @@ else
 	echo "Provide epi1/epi2 or provide rdif."
 	exit 1
 	fi
+
 
 
     for PHASE in diff rdif; do
