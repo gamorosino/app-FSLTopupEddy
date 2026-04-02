@@ -658,6 +658,25 @@ else
       b0_b="$epi2"; json_b="$epi2_json"
     fi
 
+	#########################################################################
+	####### Rigid Alignment of EPIs data to DWI
+	#########################################################################
+
+	ref="diff/dwi.nii.gz"
+	
+	aligned_b0_a="./b0_a_aligned.nii.gz"
+	aligned_b0_b="./b0_b_aligned.nii.gz"
+	
+	mat_b0_a="./b0_a_to_dwi.mat"
+	mat_b0_b="./b0_b_to_dwi.mat"
+
+	flirt -in "$b0_a" -ref "$ref" -out "$aligned_b0_a" -omat "$mat_b0_a" -dof 6
+	flirt -in "$b0_b" -ref "$ref" -out "$aligned_b0_b" -omat "$mat_b0_b" -dof 6
+
+	b0_a="${aligned_b0_a}"
+	b0_b="${aligned_b0_b}"
+
+
     [[ -f b0_images.nii.gz ]] || fslmerge -t b0_images.nii.gz "$b0_a" "$b0_b"
 
     vec_a=$(pe_to_vec "$(get_pe_dir_file "$json_a")")
