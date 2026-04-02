@@ -465,6 +465,10 @@ else
       b0_b="$epi2"; json_b="$epi2_json"
     fi
 
+	#########################################################################
+	####### TODO: Rigid Alignment of EPIs data to DWI
+	#########################################################################
+
     [[ -f b0_images.nii.gz ]] || fslmerge -t b0_images.nii.gz "$b0_a" "$b0_b"
 
     vec_a=$(pe_to_vec "$(get_pe_dir_file "$json_a")")
