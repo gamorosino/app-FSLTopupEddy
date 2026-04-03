@@ -4,29 +4,31 @@
 #PBS -l vmem=16gb
 #PBS -V
 
-reslice=`jq -r '.reslice' config.json`
+reslice=$(jq -r '.reslice' config.json)
 if [[ ${reslice} == 'true' ]]; then
-	[ -z "$FREESURFER_LICENSE" ] && echo "Please set FREESURFER_LICENSE in .bashrc" && exit 1;
-	echo $FREESURFER_LICENSE > license.txt
+    [ -z "$FREESURFER_LICENSE" ] && echo "Please set FREESURFER_LICENSE in .bashrc" && exit 1
+    echo "$FREESURFER_LICENSE" > license.txt
 
-	# convert surfaces and generate appropriate summary statistic text files
-	time singularity exec -e -B `pwd`/license.txt:/usr/local/freesurfer/license.txt docker://brainlife/freesurfer:6.0.0 ./reslice.sh
+    time singularity exec -e \
+        -B "$(pwd)/license.txt:/usr/local/freesurfer/license.txt" \
+        docker://brainlife/freesurfer:6.0.0 \
+        ./reslice.sh
 fi
 
-time singularity exec -e --nv gamorosino/fsl:6.0.7.22  bash -lc '
-unset FSLDIR
-export FSLDIR=/opt/fsl-6.0.7.22
-source $FSLDIR/etc/fslconf/fsl.sh
-export PATH=$FSLDIR/bin:/usr/bin:/bin
+time singularity exec -e --nv \
+    docker://gamorosino/fsl:6.0.7.22 \
+    bash -lc '
+export FSLDIR=/usr/local/fsl
+source "$FSLDIR/etc/fslconf/fsl.sh"
+export PATH="$FSLDIR/bin:$FSLDIR/share/fsl/bin:/usr/bin:/bin"
 hash -r
 ./topup_eddy.sh
 '
 
-if [ -s ./dwi/dwi.nii.gz ];
-then
-	echo 0 > finished
+if [ -s ./dwi/dwi.nii.gz ]; then
+    echo 0 > finished
 else
-	echo "output missing"
-	echo 1 > finished
-	exit 1
+    echo "output missing"
+    echo 1 > finished
+    exit 1
 fi
