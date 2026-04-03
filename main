@@ -4,11 +4,6 @@
 #PBS -l vmem=16gb
 #PBS -V
 
-#module load cuda/8.0 #for bridges
-
-# needs mrtrix3 container for eddy_openmp
-#export SINGULARITYENV_OMP_NUM_THREADS=$OMP_NUM_THREADS
-
 reslice=`jq -r '.reslice' config.json`
 if [[ ${reslice} == 'true' ]]; then
 	[ -z "$FREESURFER_LICENSE" ] && echo "Please set FREESURFER_LICENSE in .bashrc" && exit 1;
@@ -18,16 +13,14 @@ if [[ ${reslice} == 'true' ]]; then
 	time singularity exec -e -B `pwd`/license.txt:/usr/local/freesurfer/license.txt docker://brainlife/freesurfer:6.0.0 ./reslice.sh
 fi
 
-time singularity exec -e --nv docker://vnmd/fsl_6.0.7.19:20260217 bash -lc '
+time singularity exec -e --nv gamorosino/fsl:6.0.7.22  bash -lc '
 unset FSLDIR
-export FSLDIR=/opt/fsl-6.0.7.19
+export FSLDIR=/opt/fsl-6.0.7.22
 source $FSLDIR/etc/fslconf/fsl.sh
 export PATH=$FSLDIR/bin:/usr/bin:/bin
 hash -r
 ./topup_eddy.sh
 '
-#time singularity exec -e --nv docker://brainlife/fsl:6.0.4-patched2 ./topup_eddy.sh
-# time singularity exec -e docker://brainlife/fsl:6.0.1 ./eddy_qc.sh
 
 if [ -s ./dwi/dwi.nii.gz ];
 then
