@@ -28,9 +28,9 @@ set -euo pipefail
 ###############################################################################
 
 # Respect container FSLDIR (main sets it), default to vnmd image path
-export FSLDIR="${FSLDIR:-/opt/fsl-6.0.7.19}"
-source "$FSLDIR/etc/fslconf/fsl.sh"
-export PATH="$FSLDIR/bin:/usr/bin:/bin"
+#export FSLDIR="${FSLDIR:-/opt/fsl-6.0.7.19}"
+#source "$FSLDIR/etc/fslconf/fsl.sh"
+#export PATH="$FSLDIR/bin:/usr/bin:/bin"
 hash -r
 
 
