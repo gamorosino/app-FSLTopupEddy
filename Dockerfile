@@ -17,6 +17,7 @@ ENV SHELL=/bin/bash
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
+    bc \
     bzip2 \
     ca-certificates \
     curl \
