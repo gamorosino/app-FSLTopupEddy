@@ -442,7 +442,10 @@ get_meta_ped() {
 }
 get_meta_trt() {
   local id="$1"
-  jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.TotalReadoutTime // empty' "$CFG"
+  jq -r --arg ID "$id" '
+    ._inputs[] | select(.id==$ID) |
+    (.meta.TotalReadoutTime // .meta.EstimatedTotalReadoutTime // empty)
+  ' "$CFG"
 }
 
 get_pe_dir_file() { jq -r '.PhaseEncodingDirection // empty' "$1"; }
