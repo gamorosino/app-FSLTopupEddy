@@ -438,7 +438,28 @@ pe_to_vec() {
 
 get_meta_ped() {
   local id="$1"
-  jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.PhaseEncodingDirection // empty' "$CFG"
+  local ped
+  ped=$(jq -r --arg ID "$id" '
+    ._inputs[] | select(.id==$ID) |
+    (.meta.PhaseEncodingDirection // .meta.PhaseEncodingAxis // empty)
+  ' "$CFG")
+
+  if [[ -n "$ped" ]]; then
+    echo "$ped"
+    return 0
+  fi
+
+  if [[ -n "${encode:-}" ]]; then
+    case "$encode" in
+      PA) [[ "$id" == "diff" ]] && echo "j"  || echo "j-" ;;
+      AP) [[ "$id" == "diff" ]] && echo "j-" || echo "j"  ;;
+      LR) [[ "$id" == "diff" ]] && echo "i-" || echo "i"  ;;
+      RL) [[ "$id" == "diff" ]] && echo "i"  || echo "i-" ;;
+      *)  echo "" ;;
+    esac
+  else
+    echo ""
+  fi
 }
 get_meta_trt() {
   local id="$1"
