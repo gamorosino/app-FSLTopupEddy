@@ -101,6 +101,7 @@ reslice=$(jq -r '.reslice // "false"' "$CFG")
 merge_full=$(jq -r '.mergefull // "false"' "$CFG")
 sstrip=$(jq -r '.sstrip // "false"' "$CFG")
 eddy_cuda=$(jq -r '.eddy_cuda // "false"' "$CFG")
+data_is_shelled=$(jq -r '.data_is_shelled // "false"' "$CFG")
 
 DEBUG=1
 
@@ -687,7 +688,9 @@ else
   # NOTE: removed --ref_scan because many builds don't support it; add back only if your eddy supports it.
 
 	EDDY_OPTS=()
-	EDDY_OPTS+=(--data_is_shelled)   # comment this out if you don't want it always
+	if [[ "$data_is_shelled" == "true" ]]; then
+	  EDDY_OPTS+=(--data_is_shelled)
+	fi
 
 	[[ "${DEBUG:-0}" -eq 1 ]] && debug_dump
 	sanitize_and_validate_eddy_inputs
