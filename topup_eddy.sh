@@ -264,7 +264,8 @@ regrid=$(jq -r '.regrid // "false"' "$CFG")
 refvol=$(jq -r '.refvol // 0' "$CFG")
 slspec=$(jq -r '.slspec // empty' "$CFG")
 mporder=$(jq -r '.mporder // 0' "$CFG")
-
+repol=$(jq -r '.repol // "false"' "$CFG")
+repol="$(norm_bool "$repol")"
 # Behavior flags
 reslice=$(jq -r '.reslice // "false"' "$CFG")
 merge_full=$(jq -r '.mergefull // "false"' "$CFG")
@@ -917,6 +918,10 @@ else
 	
 	if [[ "$data_is_shelled" == "true" ]]; then
 	  EDDY_OPTS+=(--data_is_shelled)
+	fi
+
+	if [[ "$repol" == "true" ]]; then
+	  EDDY_OPTS+=(--repol)
 	fi
 	
 	if [[ "${mporder:-0}" -gt 0 ]]; then
