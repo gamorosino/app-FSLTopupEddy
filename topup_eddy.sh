@@ -933,13 +933,33 @@ else
 	  EDDY_OPTS+=(--repol)
 	fi
 	
-	if [[ "${mporder:-0}" -gt 0 ]]; then
+	if [[ -n "${mporder:-}" && "$mporder" != "0" ]]; then
 	  EDDY_OPTS+=(--mporder="$mporder")
 	
-	  if [[ -n "$slspec" ]]; then
+	  if [[ -n "${slspec:-}" ]]; then
+	    echo "Formatting slspec from config..."
+	
+	    # normalize whitespace → one number per line
+	    echo "$slspec" | tr ' ' '\n' | awk 'NF' > slspec_flat.txt
+	
+	    # count entries
+	    n=$(wc -l < slspec_flat.txt)
+	
+	    # expect multiples of 3
+	    if (( n % 3 != 0 )); then
+	      echo "ERROR: slspec length ($n) is not divisible by 3"
+	      exit 1
+	    fi
+	
+	    # reshape into 3 columns
+	    paste - - - < slspec_flat.txt > slspec.txt
+	
+	    echo "slspec (first rows):"
+	    head slspec.txt
+	
 	    EDDY_OPTS+=(--slspec=slspec.txt)
 	  else
-	    echo "ERROR: mporder > 0 but slspec was not provided"
+	    echo "ERROR: mporder > 0 but slspec is missing"
 	    exit 1
 	  fi
 	fi
