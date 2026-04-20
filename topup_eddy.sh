@@ -40,7 +40,16 @@ done
 echo "topup=$(command -v topup)"
 
 
+norm_bool () {
+  local x="${1:-}"
+  x="${x,,}"   # lowercase
 
+  case "$x" in
+    true|1)  echo "true" ;;
+    false|0|"") echo "false" ;;
+    *) echo "$x" ;;   # pass-through (avoid silent corruption)
+  esac
+}
 
 dump_cfg_vars() {
   [[ "$DEBUG" == "1" ]] || return 0
