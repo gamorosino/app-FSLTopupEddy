@@ -262,6 +262,8 @@ regrid=$(jq -r '.regrid // "false"' "$CFG")
 
 # Eddy options
 refvol=$(jq -r '.refvol // 0' "$CFG")
+slspec=$(jq -r '.slspec // empty' "$CFG")
+mporder=$(jq -r '.mporder // 0' "$CFG")
 
 # Behavior flags
 reslice=$(jq -r '.reslice // "false"' "$CFG")
@@ -893,6 +895,7 @@ else
   fi
 fi
 
+
 # -----------------------
 # EDDY (applies TOPUP field to diffusion data)
 # -----------------------
@@ -902,12 +905,31 @@ else
   echo "Running $EDDY_BIN with --topup=my_topup_results"
 
   # NOTE: removed --ref_scan because many builds don't support it; add back only if your eddy supports it.
+	# -----------------------
+	# Optional: write slspec file for slice-to-volume correction
+	# -----------------------
+	if [[ -n "$slspec" ]]; then
+	  printf "%s\n" "$slspec" > slspec.txt
+	fi
 
 	
 	EDDY_OPTS=()
+	
 	if [[ "$data_is_shelled" == "true" ]]; then
 	  EDDY_OPTS+=(--data_is_shelled)
 	fi
+	
+	if [[ "${mporder:-0}" -gt 0 ]]; then
+	  EDDY_OPTS+=(--mporder="$mporder")
+	
+	  if [[ -n "$slspec" ]]; then
+	    EDDY_OPTS+=(--slspec=slspec.txt)
+	  else
+	    echo "ERROR: mporder > 0 but slspec was not provided"
+	    exit 1
+	  fi
+	fi
+
 
 	[[ "${DEBUG:-0}" -eq 1 ]] && debug_dump
 	sanitize_and_validate_eddy_inputs
