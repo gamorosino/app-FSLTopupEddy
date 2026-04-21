@@ -461,13 +461,41 @@ get_meta_ped() {
 
 get_meta_trt() {
   local id="$1"
-  local trt=""
+  local trt="" ees="" recon_pe="" pe_steps="" wfs="" imgfreq="" etl=""
 
   trt=$(jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.TotalReadoutTime // empty' "$CFG")
   [[ -n "$trt" ]] && { echo "$trt"; return 0; }
 
   trt=$(jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.EstimatedTotalReadoutTime // empty' "$CFG")
   [[ -n "$trt" ]] && { echo "$trt"; return 0; }
+
+  ees=$(jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.EstimatedEffectiveEchoSpacing // empty' "$CFG")
+  recon_pe=$(jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.ReconMatrixPE // empty' "$CFG")
+  pe_steps=$(jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.PhaseEncodingStepsNoPartialFourier // empty' "$CFG")
+
+  if [[ -n "$ees" && -n "$recon_pe" ]]; then
+    awk -v ees="$ees" -v n="$recon_pe" 'BEGIN{printf "%.10g\n", (n-1)*ees}'
+    return 0
+  fi
+  if [[ -n "$ees" && -n "$pe_steps" ]]; then
+    awk -v ees="$ees" -v n="$pe_steps" 'BEGIN{printf "%.10g\n", (n-1)*ees}'
+    return 0
+  fi
+
+  wfs=$(jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.WaterFatShift // empty' "$CFG")
+  imgfreq=$(jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.ImagingFrequency // empty' "$CFG")
+  etl=$(jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.EchoTrainLength // empty' "$CFG")
+  recon_pe=$(jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.ReconMatrixPE // empty' "$CFG")
+
+  if [[ -n "$wfs" && -n "$imgfreq" && -n "$etl" && -n "$recon_pe" ]]; then
+    awk -v wfs="$wfs" -v f="$imgfreq" -v etl="$etl" -v n="$recon_pe" \
+      'BEGIN{
+        ees = wfs / (f * (etl + 1) * 3.4);
+        trt = ees * (n - 1);
+        printf "%.10g\n", trt
+      }'
+    return 0
+  fi
 
   echo ""
 }
