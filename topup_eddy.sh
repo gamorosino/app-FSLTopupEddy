@@ -781,6 +781,12 @@ else
 	  rdif_trt="$diff_trt"
 	  echo "WARNING: rdif TotalReadoutTime missing; assuming same as diff ($diff_trt)"
 	fi
+
+	# assume same TRT across diff and rdif if only one is available
+	if [[ -z "$diff_trt" && -n "$rdif_trt" ]]; then
+	  diff_trt="$rdif_trt"
+	  echo "WARNING: diff TotalReadoutTime missing; assuming same as rdif ($rdif_trt)"
+	fi
 	
 	if [[ -z "$diff_ped" || -z "$diff_trt" || -z "$rdif_ped" || -z "$rdif_trt" ]]; then
 	    echo "ERROR: cannot determine acq_params."
