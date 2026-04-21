@@ -465,7 +465,11 @@ get_meta_trt() {
   local id="$1"
   jq -r --arg ID "$id" '
     ._inputs[] | select(.id==$ID) |
-    (.meta.TotalReadoutTime // .meta.EstimatedTotalReadoutTime // empty)
+    (
+      .meta.TotalReadoutTime //
+      .meta.EstimatedTotalReadoutTime //
+      empty
+    )
   ' "$CFG"
 }
 
