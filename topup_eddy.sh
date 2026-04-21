@@ -33,8 +33,11 @@ set -euo pipefail
 #export PATH="$FSLDIR/bin:/usr/bin:/bin"
 hash -r
 
+# Internal debug toggle (not from config.json)
+DEBUG=1
+DEBUG="${DEBUG:-0}"
 
-for cmd in fslinfo topup fslmaths fslmerge bet select_dwi_vols; do
+for cmd in fslinfo topup fslmaths fslmerge bet select_dwi_vols flirt; do
   command -v "$cmd" >/dev/null || { echo "ERROR: missing $cmd"; exit 1; }
 done
 echo "topup=$(command -v topup)"
@@ -56,7 +59,6 @@ dump_cfg_vars() {
   echo "===== DEBUG: parsed config vars ====="
   echo "PWD=$(pwd)"
   echo "CFG=$CFG"
-  echo "FSLDIR=$FSLDIR"
   echo "PATH=$PATH"
   echo "JQ_BIN=${JQ_BIN:-<shim>}"
   echo
@@ -283,25 +285,11 @@ eddy_cuda=$(jq -r '.eddy_cuda // "false"' "$CFG")
 cuda_version=$(jq -r '.cuda_version // empty' "$CFG")
 data_is_shelled=$(jq -r '.data_is_shelled // "false"' "$CFG")
 
-DEBUG=1
 
-# Internal debug toggle (not from config.json)
-DEBUG="${DEBUG:-0}"
 
 dump_cfg_vars
 
 # normalize boolean-ish strings to "true"/"false"
-norm_bool () {
-  local x="${1:-}"
-  x="${x,,}"                 # lowercase
-  case "$x" in
-    true|false) echo "$x" ;;
-    1) echo "true" ;;
-    0) echo "false" ;;
-    "") echo "" ;;           # keep empty if you rely on empty elsewhere
-    *) echo "$x" ;;          # leave untouched (or force false if you prefer)
-  esac
-}
 
 reslice="$(norm_bool "$reslice")"
 merge_full="$(norm_bool "$merge_full")"
@@ -756,15 +744,36 @@ else
         read -r diff_ped diff_trt < <(get_legacy_ped_trt diff)
         read -r rdif_ped rdif_trt < <(get_legacy_ped_trt rdif)
         echo "WARNING: embedded PhaseEncodingDirection/TotalReadoutTime missing; using legacy encode/param (encode=$encode, param=$param)"
-      else
+	  fi
+    fi
+
+	# assume rdif is opposite of diff
+	if [[ -z "$rdif_ped" && -n "$diff_ped" ]]; then
+	  case "$diff_ped" in
+	    i)  rdif_ped="i-" ;;
+	    i-) rdif_ped="i" ;;
+	    j)  rdif_ped="j-" ;;
+	    j-) rdif_ped="j" ;;
+	    k)  rdif_ped="k-" ;;
+	    k-) rdif_ped="k" ;;
+	  esac
+	  echo "WARNING: rdif PhaseEncodingDirection missing; assuming opposite of diff ($diff_ped -> $rdif_ped)"
+	fi
+
+	# assume same TRT
+	if [[ -z "$rdif_trt" && -n "$diff_trt" ]]; then
+	  rdif_trt="$diff_trt"
+	  echo "WARNING: rdif TotalReadoutTime missing; assuming same as diff ($diff_trt)"
+	fi
+	
+	if [[ -z "$diff_ped" || -z "$diff_trt" || -z "$rdif_ped" || -z "$rdif_trt" ]]; then
         echo "ERROR: cannot determine acq_params."
         echo "Provide either:"
         echo "  (a) _inputs[].meta.PhaseEncodingDirection + _inputs[].meta.TotalReadoutTime for diff and rdif, or"
         echo "  (b) legacy encode + param in config.json, or"
         echo "  (c) epi1/epi2 + epi1_json/epi2_json"
         exit 1
-      fi
-    fi
+	fi
 
     vec_a=$(pe_to_vec "$diff_ped"); vec_b=$(pe_to_vec "$rdif_ped")
     if [[ -z "$vec_a" || -z "$vec_b" ]]; then
@@ -918,13 +927,13 @@ else
 	# -----------------------
 	# Optional: write slspec file for slice-to-volume correction
 	# -----------------------
-	if [[ -n "$slspec" ]]; then
-	  printf "%s\n" "$slspec" > slspec.txt
-	fi
+	#if [[ -n "$slspec" ]]; then
+	#  printf "%s\n" "$slspec" > slspec.txt
+	#fi
 
 	
 	EDDY_OPTS=()
-	
+	data_is_shelled="$(norm_bool "$data_is_shelled")"
 	if [[ "$data_is_shelled" == "true" ]]; then
 	  EDDY_OPTS+=(--data_is_shelled)
 	fi
