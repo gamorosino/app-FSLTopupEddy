@@ -438,16 +438,13 @@ pe_to_vec() {
 
 get_meta_ped() {
   local id="$1"
-  local ped
-  ped=$(jq -r --arg ID "$id" '
-    ._inputs[] | select(.id==$ID) |
-    (.meta.PhaseEncodingDirection // .meta.PhaseEncodingAxis // empty)
-  ' "$CFG")
+  local ped=""
 
-  if [[ -n "$ped" ]]; then
-    echo "$ped"
-    return 0
-  fi
+  ped=$(jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.PhaseEncodingDirection // empty' "$CFG")
+  [[ -n "$ped" ]] && { echo "$ped"; return 0; }
+
+ # ped=$(jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.PhaseEncodingAxis // empty' "$CFG")
+ # [[ -n "$ped" ]] && { echo "$ped"; return 0; }
 
   if [[ -n "${encode:-}" ]]; then
     case "$encode" in
@@ -461,16 +458,18 @@ get_meta_ped() {
     echo ""
   fi
 }
+
 get_meta_trt() {
   local id="$1"
-  jq -r --arg ID "$id" '
-    ._inputs[] | select(.id==$ID) |
-    (
-      .meta.TotalReadoutTime //
-      .meta.EstimatedTotalReadoutTime //
-      empty
-    )
-  ' "$CFG"
+  local trt=""
+
+  trt=$(jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.TotalReadoutTime // empty' "$CFG")
+  [[ -n "$trt" ]] && { echo "$trt"; return 0; }
+
+  trt=$(jq -r --arg ID "$id" '._inputs[] | select(.id==$ID) | .meta.EstimatedTotalReadoutTime // empty' "$CFG")
+  [[ -n "$trt" ]] && { echo "$trt"; return 0; }
+
+  echo ""
 }
 
 get_pe_dir_file() { jq -r '.PhaseEncodingDirection // empty' "$1"; }
