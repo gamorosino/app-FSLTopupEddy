@@ -739,13 +739,25 @@ else
     rdif_ped=$(get_meta_ped "rdif"); rdif_trt=$(get_meta_trt "rdif")
 
     # Fallback to legacy encode/param if embedded meta is missing
-    if [[ -z "$diff_ped" || -z "$diff_trt" || -z "$rdif_ped" || -z "$rdif_trt" ]]; then
-      if [[ -n "${encode:-}" && -n "${param:-}" ]]; then
-        read -r diff_ped diff_trt < <(get_legacy_ped_trt diff)
-        read -r rdif_ped rdif_trt < <(get_legacy_ped_trt rdif)
-        echo "WARNING: embedded PhaseEncodingDirection/TotalReadoutTime missing; using legacy encode/param (encode=$encode, param=$param)"
+	# Fill diff from legacy only if needed
+	if [[ -z "$diff_ped" || -z "$diff_trt" ]]; then
+	  if [[ -n "${encode:-}" && -n "${param:-}" ]]; then
+	    read -r legacy_diff_ped legacy_diff_trt < <(get_legacy_ped_trt diff)
+	    [[ -z "$diff_ped" ]] && diff_ped="$legacy_diff_ped"
+	    [[ -z "$diff_trt" ]] && diff_trt="$legacy_diff_trt"
+	    echo "WARNING: diff metadata incomplete; using legacy encode/param where needed (encode=$encode, param=$param)"
 	  fi
-    fi
+	fi
+	
+	# Fill rdif from legacy only if needed
+	if [[ -z "$rdif_ped" || -z "$rdif_trt" ]]; then
+	  if [[ -n "${encode:-}" && -n "${param:-}" ]]; then
+	    read -r legacy_rdif_ped legacy_rdif_trt < <(get_legacy_ped_trt rdif)
+	    [[ -z "$rdif_ped" ]] && rdif_ped="$legacy_rdif_ped"
+	    [[ -z "$rdif_trt" ]] && rdif_trt="$legacy_rdif_trt"
+	    echo "WARNING: rdif metadata incomplete; using legacy encode/param where needed (encode=$encode, param=$param)"
+	  fi
+	fi
 
 	# assume rdif is opposite of diff
 	if [[ -z "$rdif_ped" && -n "$diff_ped" ]]; then
@@ -767,13 +779,18 @@ else
 	fi
 	
 	if [[ -z "$diff_ped" || -z "$diff_trt" || -z "$rdif_ped" || -z "$rdif_trt" ]]; then
-        echo "ERROR: cannot determine acq_params."
-        echo "Provide either:"
-        echo "  (a) _inputs[].meta.PhaseEncodingDirection + _inputs[].meta.TotalReadoutTime for diff and rdif, or"
-        echo "  (b) legacy encode + param in config.json, or"
-        echo "  (c) epi1/epi2 + epi1_json/epi2_json"
-        exit 1
+	    echo "ERROR: cannot determine acq_params."
+	    echo "Resolved values:"
+	    echo "  diff_ped=$diff_ped diff_trt=$diff_trt"
+	    echo "  rdif_ped=$rdif_ped rdif_trt=$rdif_trt"
+	    echo "Provide either:"
+	    echo "  (a) _inputs[].meta.PhaseEncodingDirection + _inputs[].meta.TotalReadoutTime for diff and rdif, or"
+	    echo "  (b) legacy encode + param in config.json, or"
+	    echo "  (c) epi1/epi2 + epi1_json/epi2_json"
+	    exit 1
 	fi
+
+	# VECS
 
     vec_a=$(pe_to_vec "$diff_ped"); vec_b=$(pe_to_vec "$rdif_ped")
     if [[ -z "$vec_a" || -z "$vec_b" ]]; then
