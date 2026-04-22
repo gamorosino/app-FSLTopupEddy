@@ -42,6 +42,73 @@ for cmd in fslinfo topup fslmaths fslmerge bet select_dwi_vols flirt; do
 done
 echo "topup=$(command -v topup)"
 
+harmonize_bvals_file() {
+  local bvals_file="$1"
+  local targets_csv="$2"
+  local tol="$3"
+
+  [[ -f "$bvals_file" ]] || { echo "ERROR: missing bvals file $bvals_file"; exit 1; }
+  [[ -n "$targets_csv" ]] || { echo "ERROR: harmonize_shells=true but shell_targets is empty"; exit 1; }
+
+  if ! awk -v x="$tol" 'BEGIN{exit(x+0==x?0:1)}'; then
+    echo "ERROR: shell_tolerance must be numeric (got: $tol)"
+    exit 1
+  fi
+
+  cp "$bvals_file" "${bvals_file}.before_harmonize"
+
+  python3 - "$bvals_file" "$targets_csv" "$tol" <<'PY'
+import sys, math
+
+bvals_file = sys.argv[1]
+targets = [float(x) for x in sys.argv[2].split(",") if x.strip() != ""]
+tol = float(sys.argv[3])
+
+with open(bvals_file, "r") as f:
+    vals = [float(x) for x in f.read().split()]
+
+mapped = []
+changes = []
+
+for v in vals:
+    nearest = min(targets, key=lambda t: abs(v - t))
+    dist = abs(v - nearest)
+    if dist > tol:
+        sys.stderr.write(
+            f"ERROR: b-value {v:g} is farther than tolerance {tol:g} from all shell_targets {targets}\n"
+        )
+        sys.exit(2)
+    mapped.append(nearest)
+    if nearest != v:
+        changes.append((v, nearest))
+
+def fmt(x):
+    if abs(x - round(x)) < 1e-6:
+        return str(int(round(x)))
+    return f"{x:.6g}"
+
+with open(bvals_file, "w") as f:
+    f.write(" ".join(fmt(x) for x in mapped) + "\n")
+
+orig_unique = sorted(set(vals))
+new_unique = sorted(set(mapped))
+
+print("Shell harmonization enabled")
+print("Original unique bvals:", " ".join(fmt(x) for x in orig_unique))
+print("Snapped   unique bvals:", " ".join(fmt(x) for x in new_unique))
+
+if changes:
+    summary = {}
+    for a, b in changes:
+        summary.setdefault((a, b), 0)
+        summary[(a, b)] += 1
+    print("Mappings:")
+    for (a, b), n in sorted(summary.items(), key=lambda kv: (kv[0][1], kv[0][0])):
+        print(f"  {fmt(a)} -> {fmt(b)}   (n={n})")
+else:
+    print("No bvals needed harmonization")
+PY
+}
 
 norm_bool () {
   local x="${1:-}"
@@ -284,8 +351,11 @@ sstrip=$(jq -r '.sstrip // "false"' "$CFG")
 eddy_cuda=$(jq -r '.eddy_cuda // "false"' "$CFG")
 cuda_version=$(jq -r '.cuda_version // empty' "$CFG")
 data_is_shelled=$(jq -r '.data_is_shelled // "false"' "$CFG")
-
-
+#harmonize_shells
+harmonize_shells=$(jq -r '.harmonize_shells // "false"' "$CFG")
+harmonize_shells="$(norm_bool "$harmonize_shells")"
+shell_targets=$(jq -r '.shell_targets // empty' "$CFG")
+shell_tolerance=$(jq -r '.shell_tolerance // 120' "$CFG")
 
 dump_cfg_vars
 
@@ -386,6 +456,8 @@ v = np.loadtxt("bvecs")
 print("bvecs_shape=", v.shape)
 PY
 }
+
+
 
 sanitize_and_validate_eddy_inputs() {
   # DO NOT overwrite bvecs here — it might be merged already
@@ -987,6 +1059,12 @@ else
 
 	
 	EDDY_OPTS=()
+
+	if [[ "$harmonize_shells" == "true" ]]; then
+	  harmonize_bvals_file bvals "$shell_targets" "$shell_tolerance"
+	  data_is_shelled="true"
+	fi
+	
 	data_is_shelled="$(norm_bool "$data_is_shelled")"
 	if [[ "$data_is_shelled" == "true" ]]; then
 	  EDDY_OPTS+=(--data_is_shelled)
