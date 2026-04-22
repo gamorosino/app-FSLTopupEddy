@@ -1027,7 +1027,11 @@ else
 	  fi
 	fi
 
-
+	if [[ "${DEBUG:-0}" -eq 1 ]]; then
+		echo "data_is_shelled=$data_is_shelled" 
+		printf 'EDDY_OPTS: %s\n' "${EDDY_OPTS[*]:-<none>}"
+	fi
+	
 	[[ "${DEBUG:-0}" -eq 1 ]] && debug_dump
 	sanitize_and_validate_eddy_inputs
 
