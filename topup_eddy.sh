@@ -57,11 +57,12 @@ harmonize_bvals_file() {
 
   cp "$bvals_file" "${bvals_file}.before_harmonize"
 
-  python3 - "$bvals_file" "$targets_csv" "$tol" <<'PY'
+python3 - "$bvals_file" "$targets_csv" "$tol" <<'PY'
 import sys, math
 
 bvals_file = sys.argv[1]
-targets = [float(x) for x in sys.argv[2].split(",") if x.strip() != ""]
+targets_raw = sys.argv[2].strip().strip('"').strip("'")
+targets = [float(x.strip()) for x in targets_raw.split(",") if x.strip() != ""]
 tol = float(sys.argv[3])
 
 with open(bvals_file, "r") as f:
