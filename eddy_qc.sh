@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-mkdir -p qc/eddy_quad/work qc/eddy_quad/out regressors
+mkdir -p qc/eddy_quad/work regressors
 
 BASE="qc/eddy_quad/work/eddy_corrected_data"
 
@@ -18,17 +18,21 @@ ln -sf ../../../raw/eddy_corrected_data.eddy_outlier_n_sqr_stdev_map "${BASE}.ed
 ln -sf ../../../raw/eddy_corrected_data.eddy_outlier_report "${BASE}.eddy_outlier_report"
 ln -sf ../../../raw/eddy_corrected_data.eddy_rotated_bvecs "${BASE}.eddy_rotated_bvecs"
 
-if [[ -f qc/eddy_quad/out/qc.pdf ]]; then
+OUTDIR="qc/eddy_quad/out"
+
+if [[ -f "${OUTDIR}/qc.pdf" ]]; then
     echo "eddy_quad completed. skipping"
 else
+    rm -rf "$OUTDIR"
     eddy_quad "$BASE" \
         -idx raw/index.txt \
         -par raw/acq_params.txt \
         -m mask/mask.nii.gz \
         -b dwi/dwi.bvals \
         -g dwi/dwi.bvecs \
-        -o qc/eddy_quad/out \
+        -o "$OUTDIR" \
         -f raw/my_field.nii.gz
 fi
+cp -r ${OUTDIR} eddy_quad
 
 echo "eddy QC complete: qc/eddy_quad/out"
