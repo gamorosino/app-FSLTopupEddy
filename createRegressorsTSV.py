@@ -31,7 +31,7 @@ def createRegressors(param_filepath,movement_filepath,restricted_movement_filepa
 def main():
 
     # grab eddy top directory
-    top_path = './eddy_quad'
+    top_path = './qc/eddy_quad/work'
 
     # make outdirectory
     outpath='regressors'
