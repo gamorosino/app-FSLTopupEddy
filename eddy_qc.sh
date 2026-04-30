@@ -33,6 +33,6 @@ else
         -o "$OUTDIR" \
         -f raw/my_field.nii.gz
 fi
-cp -r ${OUTDIR} eddy_quad
+cp -r ${OUTDIR} ./eddy_quad
 
 echo "eddy QC complete: qc/eddy_quad/out"
