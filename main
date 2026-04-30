@@ -23,16 +23,6 @@ source "$FSLDIR/etc/fslconf/fsl.sh"
 export PATH="$FSLDIR/bin:$FSLDIR/share/fsl/bin:/usr/bin:/bin"
 hash -r
 ./topup_eddy.sh
-'
-
-time singularity exec -e --nv \
-    docker://gamorosino/fsl:6.0.7.22 \
-    bash -lc '
-export FSLDIR=/usr/local/fsl
-source "$FSLDIR/etc/fslconf/fsl.sh"
-export PATH="$FSLDIR/bin:$FSLDIR/share/fsl/bin:/usr/bin:/bin"
-hash -r
-./topup_eddy.sh
 ./eddy_qc.sh
 '
 
