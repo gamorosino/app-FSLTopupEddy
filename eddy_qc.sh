@@ -1,29 +1,26 @@
 #!/bin/bash
+set -euo pipefail
 
-# eddy qc - NEED TO FIX CURRENTLY
-if [ ! -d raw ]; then
-        eddy_quad eddy_corrected_data -idx index.txt -par acq_params.txt -m eddy_corrected_brain_mask -b bvals -g bvecs -o ./raw/ -f my_field.nii.gz
-fi
+mkdir -p qc/eddy_quad regressors
 
-if [ -d raw ]; then
-	# cleanup
-	cp eddy_corrected_data.nii.gz ./dwi/dwi.nii.gz;
-	cp eddy_corrected_data.eddy_rotated_bvecs ./dwi/dwi.bvecs;
-	cp bvals ./dwi/dwi.bvals;
-	cp eddy_corrected_brain_mask.nii.gz ./mask/mask.nii.gz;
-	
-	# mv everything else to raw
-	mkdir -p raw
-	mv *eddy_corrected* ./raw/
-	mv index.txt ./raw/
-	mv *my_* ./raw/
-	mv *b0_images* ./raw/
-	mv acq_params.txt ./raw/
-	mv diff ./raw/
-	mv rdif ./raw/
-	mv bvals ./raw/
-	mv bvecs ./raw/
+if [[ -d qc/eddy_quad/qc ]]; then
+    echo "eddy_quad completed. skipping"
 else
-	echo "failed"
-	exit 1
+    echo "running eddy_quad"
+
+    eddy_quad ./dwi/dwi \
+        -idx ./raw/index.txt \
+        -par ./raw/acq_params.txt \
+        -m ./mask/mask.nii.gz \
+        -b ./dwi/dwi.bvals \
+        -g ./dwi/dwi.bvecs \
+        -o ./qc/eddy_quad/qc \
+        -f ./raw/my_field.nii.gz
 fi
+
+# Copy eddy motion/regressor files from raw into qc folder if needed
+cp -n ./raw/eddy_corrected_data.eddy_parameters ./qc/eddy_quad/ 2>/dev/null || true
+cp -n ./raw/eddy_corrected_data.eddy_movement_rms ./qc/eddy_quad/ 2>/dev/null || true
+cp -n ./raw/eddy_corrected_data.eddy_restricted_movement_rms ./qc/eddy_quad/ 2>/dev/null || true
+
+echo "eddy QC complete"
