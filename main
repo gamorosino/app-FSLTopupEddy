@@ -15,6 +15,8 @@ if [[ ${reslice} == 'true' ]]; then
         ./reslice.sh
 fi
 
+echo "DEBUG: run topup+eddy+qc"
+
 time singularity exec -e --nv \
     docker://gamorosino/fsl:6.0.7.22 \
     bash -lc '
@@ -26,6 +28,7 @@ hash -r
 ./eddy_qc.sh
 '
 
+echo "DEBUG: create regressor file"
 time singularity exec -e \
     docker://brainlife/freesurfer-stats:1.2 \
     ./createRegressorsTSV.py
