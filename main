@@ -15,6 +15,10 @@ if [[ ${reslice} == 'true' ]]; then
         ./reslice.sh
 fi
 
+if [[ -s ./dwi/dwi.nii.gz && -s ./dwi/dwi.bvecs && -s ./dwi/dwi.bvals && -s ./mask/mask.nii.gz $$ -s ./eddy_quad/qc.pdf ]]; then
+    topup+eddy+qc already done
+else
+
 echo "DEBUG: run topup+eddy+qc"
 
 time singularity exec -e --nv \
@@ -27,6 +31,7 @@ hash -r
 ./topup_eddy.sh
 ./eddy_qc.sh
 '
+fi
 
 echo "DEBUG: create regressor file"
 time singularity exec -e \
