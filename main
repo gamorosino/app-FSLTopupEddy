@@ -15,7 +15,7 @@ if [[ ${reslice} == 'true' ]]; then
         ./reslice.sh
 fi
 
-if [[ -s ./dwi/dwi.nii.gz && -s ./dwi/dwi.bvecs && -s ./dwi/dwi.bvals && -s ./mask/mask.nii.gz $$ -s ./eddy_quad/qc.pdf ]]; then
+if [[ -s ./dwi/dwi.nii.gz && -s ./dwi/dwi.bvecs && -s ./dwi/dwi.bvals && -s ./mask/mask.nii.gz && -s ./eddy_quad/qc.pdf ]]; then
     echo "topup+eddy+qc already done"
 else
 
