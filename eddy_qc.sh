@@ -1,29 +1,29 @@
 #!/bin/bash
 set -euo pipefail
 
-mkdir -p qc/eddy_quad/work regressors
+mkdir -p eddy_quad regressors
 
-BASE="qc/eddy_quad/work/eddy_corrected_data"
+BASE="./eddy_quad/eddy_corrected_data"
+OUTDIR="./eddy_quad/qc"
 
-# Link final corrected DWI using original eddy basename
-ln -sf ../../../dwi/dwi.nii.gz "${BASE}.nii.gz"
+# Copy/link final corrected image with original eddy basename
+ln -sf ../dwi/dwi.nii.gz "${BASE}.nii.gz"
 
-# Link eddy sidecars from raw
-ln -sf ../../../raw/eddy_corrected_data.eddy_parameters "${BASE}.eddy_parameters"
-ln -sf ../../../raw/eddy_corrected_data.eddy_movement_rms "${BASE}.eddy_movement_rms"
-ln -sf ../../../raw/eddy_corrected_data.eddy_restricted_movement_rms "${BASE}.eddy_restricted_movement_rms"
-ln -sf ../../../raw/eddy_corrected_data.eddy_outlier_map "${BASE}.eddy_outlier_map"
-ln -sf ../../../raw/eddy_corrected_data.eddy_outlier_n_stdev_map "${BASE}.eddy_outlier_n_stdev_map"
-ln -sf ../../../raw/eddy_corrected_data.eddy_outlier_n_sqr_stdev_map "${BASE}.eddy_outlier_n_sqr_stdev_map"
-ln -sf ../../../raw/eddy_corrected_data.eddy_outlier_report "${BASE}.eddy_outlier_report"
-ln -sf ../../../raw/eddy_corrected_data.eddy_rotated_bvecs "${BASE}.eddy_rotated_bvecs"
-
-OUTDIR="qc/eddy_quad/out"
+# Copy/link eddy sidecars from raw
+ln -sf ../raw/eddy_corrected_data.eddy_parameters "${BASE}.eddy_parameters"
+ln -sf ../raw/eddy_corrected_data.eddy_movement_rms "${BASE}.eddy_movement_rms"
+ln -sf ../raw/eddy_corrected_data.eddy_restricted_movement_rms "${BASE}.eddy_restricted_movement_rms"
+ln -sf ../raw/eddy_corrected_data.eddy_rotated_bvecs "${BASE}.eddy_rotated_bvecs"
+ln -sf ../raw/eddy_corrected_data.eddy_outlier_map "${BASE}.eddy_outlier_map"
+ln -sf ../raw/eddy_corrected_data.eddy_outlier_report "${BASE}.eddy_outlier_report"
+ln -sf ../raw/eddy_corrected_data.eddy_outlier_n_stdev_map "${BASE}.eddy_outlier_n_stdev_map"
+ln -sf ../raw/eddy_corrected_data.eddy_outlier_n_sqr_stdev_map "${BASE}.eddy_outlier_n_sqr_stdev_map"
 
 if [[ -f "${OUTDIR}/qc.pdf" ]]; then
     echo "eddy_quad completed. skipping"
 else
     rm -rf "$OUTDIR"
+
     eddy_quad "$BASE" \
         -idx raw/index.txt \
         -par raw/acq_params.txt \
@@ -33,6 +33,5 @@ else
         -o "$OUTDIR" \
         -f raw/my_field.nii.gz
 fi
-cp -r ${OUTDIR} ./eddy_quad
 
-echo "eddy QC complete: qc/eddy_quad/out"
+echo "eddy QC complete: $OUTDIR"
