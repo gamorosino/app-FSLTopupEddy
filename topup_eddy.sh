@@ -837,7 +837,20 @@ else
       fi
     done
 
-    [[ -f b0_images.nii.gz ]] || fslmerge -t b0_images.nii.gz ./diff/diff_nodif_mean.nii.gz ./rdif/rdif_nodif_mean.nii.gz
+	# Ensure rdif is on same grid as diff (NO registration, just resampling)
+	if [[ ! -f ./rdif/rdif_nodif_mean_resampled.nii.gz ]]; then
+	  echo "Resampling rdif b0 to diff grid"
+	  flirt \
+	    -in ./rdif/rdif_nodif_mean.nii.gz \
+	    -ref ./diff/diff_nodif_mean.nii.gz \
+	    -applyxfm -usesqform \
+	    -out ./rdif/rdif_nodif_mean_resampled.nii.gz
+	fi
+	
+	# Merge b0 images for topup
+	[[ -f b0_images.nii.gz ]] || fslmerge -t b0_images.nii.gz \
+	  ./diff/diff_nodif_mean.nii.gz \
+	  ./rdif/rdif_nodif_mean_resampled.nii.gz
 
     diff_ped=$(get_meta_ped "diff"); diff_trt=$(get_meta_trt "diff")
     rdif_ped=$(get_meta_ped "rdif"); rdif_trt=$(get_meta_trt "rdif")
