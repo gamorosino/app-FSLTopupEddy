@@ -29,21 +29,22 @@ def createRegressors(param_filepath, movement_filepath, restricted_movement_file
 
 def main():
 
-    # grab eddy top directory
-    top_path = './qc/eddy_quad/work'
+    top_path = './eddy_quad'
 
-    # make outdirectory
-    outpath='regressors'
+    outpath = 'regressors'
     if not os.path.isdir(outpath):
         os.mkdir(outpath)
 
-    # grab filepaths
-    param_filepath = top_path +'/eddy_corrected_data.eddy_parameters'
-    rms_filepath = top_path +'/eddy_corrected_data.eddy_movement_rms'
-    rms_restricted_filepath = top_path +'/eddy_corrected_data.eddy_restricted_movement_rms'
+    param_filepath = top_path + '/eddy_corrected_data.eddy_parameters'
+    rms_filepath = top_path + '/eddy_corrected_data.eddy_movement_rms'
+    rms_restricted_filepath = top_path + '/eddy_corrected_data.eddy_restricted_movement_rms'
 
-    # generate regressors .tsv file
-    createRegressors(param_filepath, rms_filepath, rms_restricted_filepath,outpath+'/regressors.tsv')
+    createRegressors(
+        param_filepath,
+        rms_filepath,
+        rms_restricted_filepath,
+        outpath + '/regressors.tsv'
+    )
 
 if __name__ == '__main__':
     main()
