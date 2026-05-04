@@ -1,7 +1,7 @@
 [![Abcdspec-compliant](https://img.shields.io/badge/ABCD_Spec-v1.1-green.svg)](https://github.com/brainlife/abcd-spec)
 [![Run on Brainlife.io](https://img.shields.io/badge/Brainlife-brainlife.app.887-blue.svg)](https://doi.org/10.25663/brainlife.app.887)
 
-# FSL Topup & Eddy Cuda
+# FSL Topup, Eddy Cuda and QC
 
 This application preprocesses diffusion-weighted MRI (DWI) data using **FSL**’s *topup* and *eddy* tools to correct for:
 
@@ -94,7 +94,16 @@ The pipeline performs the following steps:
 3. **Mask generation**
 
    * Produces a brain mask from the corrected mean *b0* image.
+   * 
+4. **EDDY QC**
 
+   * Runs `eddy_quad` on the corrected DWI output.
+   * Stores QC reports separately without modifying the final DWI outputs.
+
+5. **Regressor generation**
+
+   * Extracts EDDY motion and EC parameters.
+   * Produces a tab-separated regressor table for downstream analyses.
 ---
 
 # Running the App
@@ -212,7 +221,12 @@ One of the following must be provided:
   ```
   mask/mask.nii.gz
   ```
+### Quality-control outputs
 
+* EDDY QUAD report
+
+  ```text
+  qc/eddy_quad/out/
 ---
 
 # Dependencies
