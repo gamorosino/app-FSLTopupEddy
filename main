@@ -36,7 +36,7 @@ fi
 echo "DEBUG: create regressor file"
 time singularity exec -e \
     docker://brainlife/freesurfer-stats:1.2 \
-    ./createRegressorsTSV.py
+    python3 ./createRegressorsTSV.py
 
 
 if [[ -s ./dwi/dwi.nii.gz && -s ./dwi/dwi.bvecs && -s ./dwi/dwi.bvals && -s ./mask/mask.nii.gz ]]; then
