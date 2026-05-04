@@ -846,9 +846,22 @@ else
 	if [[ ! -f ./rdif/rdif_nodif_mean_resampled.nii.gz ]]; then
 	  echo "Checking grid consistency between diff and rdif"
 	
-	  same_grid=$(fslinfo ./diff/diff_nodif_mean.nii.gz | grep -E 'dim[123]|pixdim[123]' ; \
-	              fslinfo ./rdif/rdif_nodif_mean.nii.gz | grep -E 'dim[123]|pixdim[123]') | \
-	              awk 'NR<=6{a[NR]=$0} NR>6{if($0!=a[NR-6]){print "0"; exit}} END{print "1"}'
+	 same_grid=$(
+		  {
+		    fslinfo ./diff/diff_nodif_mean.nii.gz | grep -E '^(dim[123]|pixdim[123])'
+		    fslinfo ./rdif/rdif_nodif_mean.nii.gz | grep -E '^(dim[123]|pixdim[123])'
+		  } | awk '
+		    NR<=6 { a[NR]=$0; next }
+		    {
+		      if ($0 != a[NR-6]) {
+		        print "0"
+		        exit
+		      }
+		    }
+		    END {
+		      if (NR == 12) print "1"
+		    }'
+		)
 	
 	  if [[ "$same_grid" == "1" ]]; then
 	    echo "Grids match — no resampling needed"
