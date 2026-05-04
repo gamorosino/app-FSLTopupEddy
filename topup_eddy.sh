@@ -3,34 +3,39 @@ set -euo pipefail
 #set -x
 
 ###############################################################################
-# DWI distortion + motion/eddy correction using TOPUP + EDDY (eddy_openmp)
+# DWI distortion + motion/eddy correction using TOPUP + EDDY
 #
-# Key fixes vs your original script:
-#  1) TOPUP is estimated from opposite-PE b0 images AND is actually applied to
-#     the full DWI series via eddy_openmp --topup=...
-#  2) If epi1/epi2 are provided (separate b0 EPI images), they are used for TOPUP
-#     instead of extracting b0 from diff/rdif. In that case rdif/rbvc/rbvl are
-#     not required.
-#  3) Diffusion metadata (PhaseEncodingDirection, TotalReadoutTime) is read from
-#     embedded meta in config.json under ._inputs[].meta (id=="diff").
-#  4) Optional "sstrip" creates a mask for TOPUP inputs (recommended) without
-#     modifying epi1/epi2 images themselves.
+# Key features:
+#  1) TOPUP is estimated from opposite phase-encoded b0 images and is applied to
+#     the full DWI series through EDDY using --topup=...
+#  2) If epi1/epi2 are provided as separate AP/PA EPI field-map images, they are
+#     used for TOPUP instead of extracting b0 volumes from diff/rdif.
+#  3) If rdif is used, b0 volumes are extracted from diff and rdif. The rdif mean
+#     b0 is resampled to the diff b0 grid only when needed, without rigid
+#     registration, before merging the b0 images for TOPUP.
+#  4) Diffusion metadata, including PhaseEncodingDirection and TotalReadoutTime,
+#     is read from embedded metadata in config.json under ._inputs[].meta.
+#  5) Legacy encode/param values are used as fallback when embedded metadata are
+#     incomplete.
+#  6) Optional sstrip creates a mask for TOPUP inputs without modifying the
+#     original epi1/epi2 images.
 #
 # Requirements:
-#  - FSL: topup, eddy_openmp, bet, fslmaths, fslmerge, fslinfo, select_dwi_vols
-#  - jq
+#  - FSL: topup, eddy_openmp/eddy_cuda/eddy_cpu, bet, fslmaths, fslmerge,
+#         fslinfo, select_dwi_vols, flirt
+#  - jq, python3
 #
 # Notes:
-#  - This script assumes the config.json includes paths: diff,bvec,bval
-#    and optionally rdif,rbvc,rbvl and/or epi1,epi2,epi1_json,epi2_json.
-#  - If you set mergefull=true, you must also provide rdif/rbvc/rbvl (and ideally
-#    rdif metadata embedded in config ._inputs[] with id=="rdif").
+#  - Required inputs: diff, bvec, bval.
+#  - TOPUP requires either:
+#      (a) reverse phase-encoded DWI inputs: rdif, rbvc, rbvl, or
+#      (b) EPI field-map inputs: epi1, epi2, epi1_json, epi2_json.
+#  - If mergefull=true, rdif/rbvc/rbvl are also merged into the EDDY input.
+#  - Final outputs are written to dwi/ and mask/. Intermediate TOPUP/EDDY files
+#    are archived in raw/.
 ###############################################################################
 
-# Respect container FSLDIR (main sets it), default to vnmd image path
-#export FSLDIR="${FSLDIR:-/opt/fsl-6.0.7.19}"
-#source "$FSLDIR/etc/fslconf/fsl.sh"
-#export PATH="$FSLDIR/bin:/usr/bin:/bin"
+
 hash -r
 
 # Internal debug toggle (not from config.json)
