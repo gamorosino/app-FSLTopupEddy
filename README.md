@@ -1,5 +1,5 @@
 [![Abcdspec-compliant](https://img.shields.io/badge/ABCD_Spec-v1.1-green.svg)](https://github.com/brainlife/abcd-spec)
-[![Run on Brainlife.io](https://img.shields.io/badge/Brainlife-brainlife.app.887-blue.svg)](https://doi.org/10.25663/brainlife.app.887)
+[![Run on Brainlife.io](https://img.shields.io/badge/Brainlife-brainlife.app.926-blue.svg)](https://doi.org/10.25663/brainlife.app.926)
 
 # FSL Topup, Eddy Cuda and QC
 
